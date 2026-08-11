@@ -108,9 +108,11 @@ async function gemini({
   // Gemini 3.x 는 기본으로 생각을 합니다. 짧은 호출은 최소로 낮춥니다.
   if (thinkingLevel) generationConfig.thinkingConfig = { thinkingLevel };
   // 스키마를 주면 모델이 반드시 그 모양의 JSON 으로만 답합니다.
+  // mimeType 은 MIME 문자열이 아니라 enum 입니다. "application/json" 을 넣으면
+  // 400 이 납니다. APPLICATION_JSON 그대로 두세요.
   if (schema)
     generationConfig.responseFormat = {
-      text: { mimeType: "application/json", schema },
+      text: { mimeType: "APPLICATION_JSON", schema },
     };
 
   const body = { contents, generationConfig };
