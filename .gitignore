@@ -3,3 +3,8 @@ dist
 .DS_Store
 *.log
 .wrangler
+
+# 키가 실수로 올라가지 않게 막습니다.
+.env
+.env.*
+.dev.vars
