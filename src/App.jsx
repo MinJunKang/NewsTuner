@@ -86,7 +86,6 @@ const Spinner = ({ label }) => <p className="spinner">{label}</p>;
 export default function App() {
   const [keys, setKeys] = useState(() => ({
     gemini: "",
-    claude: "",
     proxy: "",
     token: "",
     ...load("nt-keys", {}),
@@ -107,7 +106,7 @@ export default function App() {
 
   const [tab, setTab] = useState(() => {
     const k = load("nt-keys", {});
-    return k.proxy || (k.gemini && k.claude) ? "read" : "set";
+    return k.proxy || k.gemini ? "read" : "set";
   });
   const [mode, setMode] = useState("word");
   const [sheet, setSheet] = useState(null);
@@ -122,7 +121,7 @@ export default function App() {
   useEffect(() => article && save("nt-article", article), [article]);
   useEffect(() => chatEnd.current?.scrollIntoView({ behavior: "smooth" }), [chat, chatBusy]);
 
-  const ready = keys.proxy || (keys.gemini && keys.claude);
+  const ready = keys.proxy || !!keys.gemini;
 
   /* ---- actions ---- */
 
@@ -154,7 +153,7 @@ export default function App() {
     setSheet({ kind: "word", term: word, loading: true });
     try {
       const data = await lookupWord({
-        claudeKey: keys.claude,
+        geminiKey: keys.gemini,
         proxy: keys.proxy,
         proxyToken: keys.token,
         word,
@@ -170,7 +169,7 @@ export default function App() {
     setSheet({ kind: "sentence", term: sentence, loading: true });
     try {
       const data = await lookupSentence({
-        claudeKey: keys.claude,
+        geminiKey: keys.gemini,
         proxy: keys.proxy,
         proxyToken: keys.token,
         sentence,
@@ -190,7 +189,7 @@ export default function App() {
     setChatBusy(true);
     try {
       const reply = await discuss({
-        claudeKey: keys.claude,
+        geminiKey: keys.gemini,
         proxy: keys.proxy,
         proxyToken: keys.token,
         article,
@@ -424,7 +423,7 @@ export default function App() {
         {tab === "set" && (
           <div className="settings">
             <div className="field">
-              <label htmlFor="gk">GEMINI API KEY · 뉴스 수집</label>
+              <label htmlFor="gk">GEMINI API KEY</label>
               <input
                 id="gk"
                 type="password"
@@ -434,21 +433,9 @@ export default function App() {
                 placeholder="AIza…"
               />
               <small>
-                aistudio.google.com 에서 무료로 발급합니다. Google 검색 그라운딩으로 기사를 찾습니다.
+                aistudio.google.com 에서 무료로 발급합니다. 이 키 하나로 뉴스 수집, 단어 풀이,
+                대화가 모두 돌아갑니다.
               </small>
-            </div>
-
-            <div className="field">
-              <label htmlFor="ck">ANTHROPIC API KEY · 사전과 대화</label>
-              <input
-                id="ck"
-                type="password"
-                autoComplete="off"
-                value={keys.claude}
-                onChange={(e) => setKeys({ ...keys, claude: e.target.value })}
-                placeholder="sk-ant-…"
-              />
-              <small>console.anthropic.com 에서 발급합니다. 단어 풀이는 Haiku, 대화는 Sonnet을 씁니다.</small>
             </div>
 
             <div className="field">

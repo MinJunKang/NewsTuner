@@ -3,9 +3,11 @@
 VOA·NPR 뉴스를 라디오 주파수처럼 맞춰 읽고, 단어를 눌러 뜻을 보고, 기사에 대해 대화하는 개인용 앱입니다.
 아이폰 홈 화면에 설치되는 PWA라 개발자 계정(연 $99)이 필요 없습니다.
 
+키는 Gemini 하나만 있으면 됩니다.
+
 - **뉴스 수집** — Gemini 3.6 Flash + Google 검색 그라운딩
-- **단어·문장 풀이** — Claude Haiku 4.5
-- **기사 토론** — Claude Sonnet 5
+- **단어·문장 풀이** — Gemini 3.5 Flash-Lite
+- **기사 토론** — Gemini 3.6 Flash
 
 ---
 
@@ -51,12 +53,11 @@ https://<아이디>.github.io/news-tuner/
 | | 발급처 | 비용 |
 |---|---|---|
 | Gemini | aistudio.google.com | 무료 티어 |
-| Anthropic | console.anthropic.com | 선불 크레딧 |
 
 Gemini는 Flash 계열이 무료 티어에 있고, Google 검색 그라운딩도 월 5,000 프롬프트까지 무료 한도가 있습니다.
 한도는 수시로 바뀌니 AI Studio의 rate limit 화면에서 본인 프로젝트 실제 수치를 확인하세요.
 
-Claude 쪽은 하루 몇 번 쓰는 개인 사용이면 **월 $1 안팎**입니다. 단어 클릭 한 번이 $0.001 미만입니다.
+단어 클릭과 대화도 같은 키를 쓰므로, 개인 사용이면 대체로 무료 티어 안에서 끝납니다.
 
 키는 그 기기의 localStorage에만 저장됩니다. 한 번 넣으면 계속 유지됩니다.
 
@@ -75,8 +76,9 @@ npm run dev
 저작권 문제를 피하고 난이도(A2~C1)를 조절할 수 있게 하는 선택입니다.
 원문 링크와 그라운딩 출처는 기사 하단에 함께 표시됩니다.
 
-**모델을 나눠 씁니다.** 단어 클릭은 짧고 잦으니 Haiku, 기사 토론은 맥락 이해가 필요하니 Sonnet입니다.
-모델명은 요즘 자주 바뀌므로 `src/api.js`의 `MODELS` 객체 한 곳에서만 고치면 전체에 적용됩니다.
+**모델을 나눠 씁니다.** 단어 클릭은 짧고 잦으니 Flash-Lite(생각 기본값이 minimal 이라 빠릅니다),
+뉴스 수집과 토론은 Flash를 씁니다. 모델명은 자주 바뀌므로 `src/api.js`의 `MODELS` 객체
+한 곳에서만 고치면 전체에 적용됩니다. 워커를 쓴다면 `worker/index.js`의 `ALLOWED_MODELS`도 함께 고치세요.
 
 **기사와 단어장은 기기에 남습니다.** 앱을 껐다 켜도 마지막 기사가 그대로 있습니다.
 
@@ -98,7 +100,6 @@ worker/                  선택 사항. 키를 기기에 두지 않는 프록시
 ```bash
 npx wrangler deploy worker/index.js --name news-tuner-proxy
 npx wrangler secret put GEMINI_KEY   --name news-tuner-proxy
-npx wrangler secret put CLAUDE_KEY   --name news-tuner-proxy
 npx wrangler secret put SHARED_TOKEN --name news-tuner-proxy
 ```
 
