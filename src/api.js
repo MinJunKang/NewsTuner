@@ -620,6 +620,81 @@ const PHRASE_SCHEMA = {
   ],
 };
 
+const PHRASES_SCHEMA = {
+  type: "object",
+  properties: {
+    phrases: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          text: {
+            type: "string",
+            description:
+              "The expression exactly as it appears in the text, copied character for " +
+              "character including its inflection. It must be findable in the text as written.",
+          },
+          ko: { type: "string", description: "KOREAN ONLY. A short meaning, a few words." },
+        },
+        required: ["text", "ko"],
+      },
+    },
+  },
+  required: ["phrases"],
+};
+
+// 어디가 관용구인지 알아야 찍을 수 있는데, 모르니까 찾아보는 것입니다.
+// 그래서 기사에서 먼저 찾아 표시해 줍니다.
+export async function findPhrases({ geminiKey, proxy, proxyToken, paragraphs }) {
+  const text = (Array.isArray(paragraphs) ? paragraphs : []).join("\n\n");
+  if (!text.trim()) return [];
+
+  const { text: out } = await gemini({
+    geminiKey,
+    proxy,
+    proxyToken,
+    model: MODELS.lookup,
+    thinkingLevel: "minimal",
+    maxOutputTokens: 1600,
+    schema: PHRASES_SCHEMA,
+    system:
+      "You find English expressions worth learning, for an advanced Korean learner. " +
+      "The ko field must be Korean.",
+    contents: [
+      {
+        role: "user",
+        parts: [
+          {
+            text: `Find the expressions in this text that a Korean learner could not work out by
+adding up the individual word meanings — idioms, phrasal verbs, figurative expressions and
+strong collocations.
+
+Rules
+- Only multi-word expressions. Skip single words.
+- Skip plain noun phrases and proper nouns that mean exactly what they say.
+- Copy each expression exactly as it appears, including its inflection. Do not give the
+  dictionary form, because it has to be found in the text as written.
+- At most 12, the most useful first. If there are none, return an empty list.
+
+TEXT
+${text}`,
+          },
+        ],
+      },
+    ],
+  });
+
+  const parsed = extractJson(out);
+  return (Array.isArray(parsed?.phrases) ? parsed.phrases : [])
+    .map((p) => ({
+      text: typeof p?.text === "string" ? p.text.trim() : "",
+      ko: typeof p?.ko === "string" ? p.ko.trim() : "",
+    }))
+    // 본문에 실제로 있는 것만 남깁니다. 없는 것은 표시할 자리가 없습니다.
+    .filter((p) => p.text.length >= 3 && text.toLowerCase().includes(p.text.toLowerCase()))
+    .slice(0, 12);
+}
+
 export async function lookupPhrase({ geminiKey, proxy, proxyToken, phrase, sentence }) {
   const { text } = await gemini({
     geminiKey,

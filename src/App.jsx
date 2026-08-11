@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import {
   fetchArticle,
   findStories,
+  findPhrases,
   lookupWord,
   lookupPhrase,
   lookupSentence,
@@ -154,6 +155,38 @@ const cleanEntry = (e) => {
 const splitSentences = (p) => p.match(/[^.!?]+[.!?]+["'’)\]]*\s*|[^.!?]+$/g) || [p];
 const cleanWord = (t) => t.replace(/^[^A-Za-z'’-]+|[^A-Za-z'’-]+$/g, "");
 
+// 찾아낸 표현이 이 문장의 몇 번째 토큰에 걸쳐 있는지 계산합니다.
+// 토큰은 공백까지 포함해 이어 붙이면 원문 문장이 되므로, 문자 위치로 맞춥니다.
+function markPhrases(toks, phrases) {
+  const marks = new Map();
+  if (!phrases.length) return marks;
+
+  const lower = toks.join("").toLowerCase();
+  const starts = [];
+  let pos = 0;
+  for (const t of toks) {
+    starts.push(pos);
+    pos += t.length;
+  }
+
+  for (const p of phrases) {
+    const needle = p.text.toLowerCase();
+    let from = 0;
+    let at;
+    while ((at = lower.indexOf(needle, from)) !== -1) {
+      const end = at + needle.length;
+      for (let i = 0; i < toks.length; i++) {
+        const s = starts[i];
+        if (s + toks[i].length > at && s < end) marks.set(i, p.text);
+      }
+      from = at + needle.length;
+    }
+  }
+  return marks;
+}
+
+const NO_MARKS = new Map();
+
 /* ---------------- 붙여넣기 본문 추리기 ---------------- */
 
 // 페이지를 통째로 복사하면 메뉴, 공유 버튼, 관련 기사, 푸터가 함께 딸려옵니다.
@@ -278,6 +311,9 @@ export default function App() {
   const [sheet, setSheet] = useState(null);
   // 표현 모드에서 처음 누른 단어. 두 번째 단어를 누르면 그 구간이 표현이 됩니다.
   const [anchor, setAnchor] = useState(null);
+  // 기사에서 찾아낸 관용구·구동사. 밑줄로 표시하고 한 번 탭으로 열립니다.
+  const [phrases, setPhrases] = useState([]);
+  const [findingPhrases, setFindingPhrases] = useState(false);
 
   // 같은 단어를 다시 누르는 일이 잦습니다. 그때마다 API 를 부르면 하루 한도가
   // 금방 닳으므로, 이번 세션 동안 본 결과는 기억해 둡니다.
@@ -332,6 +368,7 @@ export default function App() {
         story,
       });
       setArticle(a);
+      setPhrases([]);
       setPanelOpen(false);
       setTab("read");
     } catch (e) {
@@ -370,10 +407,38 @@ export default function App() {
       })
     );
 
+  // 표현 모드로 바꿀 때 기사에서 관용구를 한 번 찾아 둡니다.
+  async function enterPhraseMode() {
+    setMode("phrase");
+    setAnchor(null);
+    if (phrases.length || findingPhrases || !article) return;
+    setFindingPhrases(true);
+    try {
+      setPhrases(
+        await findPhrases({
+          geminiKey: keys.gemini,
+          proxy: keys.proxy,
+          proxyToken: keys.token,
+          paragraphs: article.paragraphs,
+        })
+      );
+    } catch {
+      // 못 찾아도 직접 구간을 골라 쓸 수 있으므로 조용히 넘어갑니다.
+      setPhrases([]);
+    } finally {
+      setFindingPhrases(false);
+    }
+  }
+
   // 단어 모드는 한 번 탭이면 끝이고, 표현 모드는 시작과 끝 두 번을 받습니다.
-  function tapWord({ pi, si, ti, toks, w, s }) {
+  // 다만 찾아 둔 표현 위를 누르면 그 표현이 바로 열립니다.
+  function tapWord({ pi, si, ti, toks, w, s, marked }) {
     if (mode !== "phrase") {
       openWord(w, s);
+      return;
+    }
+    if (marked && !anchor) {
+      openPhrase(marked, s);
       return;
     }
     // 다른 문장을 누르면 이전 선택은 버리고 거기서 다시 시작합니다.
@@ -530,6 +595,7 @@ export default function App() {
       related: [],
       sources: [],
     });
+    setPhrases([]);
     setPasteMsg(note);
     setPanelOpen(false);
     setTab("read");
@@ -865,13 +931,7 @@ export default function App() {
                   >
                     단어 뜻
                   </Chip>
-                  <Chip
-                    on={mode === "phrase"}
-                    onClick={() => {
-                      setMode("phrase");
-                      setAnchor(null);
-                    }}
-                  >
+                  <Chip on={mode === "phrase"} onClick={enterPhraseMode}>
                     표현·관용구
                   </Chip>
                   <Chip
@@ -886,9 +946,13 @@ export default function App() {
                 </div>
                 {mode === "phrase" && (
                   <p className="hint">
-                    {anchor
-                      ? "끝 단어를 누르세요. 한 단어만 볼 거라면 같은 단어를 다시 누르세요."
-                      : "표현의 첫 단어와 끝 단어를 차례로 누르세요."}
+                    {findingPhrases
+                      ? "기사에서 표현을 찾는 중…"
+                      : anchor
+                        ? "끝 단어를 누르세요."
+                        : phrases.length
+                          ? `밑줄 친 표현 ${phrases.length}개를 찾았습니다. 눌러서 보세요. 밑줄이 없는 곳은 첫 단어와 끝 단어를 차례로 누르면 됩니다.`
+                          : "표현의 첫 단어와 끝 단어를 차례로 누르세요."}
                   </p>
                 )}
 
@@ -904,12 +968,15 @@ export default function App() {
                             </span>
                           );
                         const toks = sent.split(/(\s+)/);
+                        const marks =
+                          mode === "phrase" ? markPhrases(toks, phrases) : NO_MARKS;
                         return (
                           <span key={si}>
                             {toks.map((tok, ti) => {
                               const w = cleanWord(tok);
                               if (!w) return <span key={ti}>{tok}</span>;
-                              const marked =
+                              const marked = marks.get(ti);
+                              const isAnchor =
                                 mode === "phrase" &&
                                 anchor &&
                                 anchor.pi === pi &&
@@ -918,8 +985,12 @@ export default function App() {
                               return (
                                 <span
                                   key={ti}
-                                  className={"w" + (marked ? " w--anchor" : "")}
-                                  onClick={() => tapWord({ pi, si, ti, toks, w, s })}
+                                  className={
+                                    "w" +
+                                    (marked ? " w--idiom" : "") +
+                                    (isAnchor ? " w--anchor" : "")
+                                  }
+                                  onClick={() => tapWord({ pi, si, ti, toks, w, s, marked })}
                                 >
                                   {tok}
                                 </span>

@@ -666,6 +666,11 @@ a {
   border-bottom: 1px solid var(--paper-line);
 }
 
+/* 찾아낸 관용구는 밑줄로 표시합니다. 한 번 누르면 바로 열립니다. */
+.w--idiom {
+  border-bottom: 1px dashed var(--signal);
+}
+
 /* 표현 모드에서 첫 단어를 눌렀을 때, 어디서 시작했는지 보여줍니다. */
 .w--anchor {
   background: rgba(61, 219, 192, 0.22);
