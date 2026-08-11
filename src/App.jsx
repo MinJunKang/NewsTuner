@@ -304,7 +304,6 @@ function Dial({ source, tuning }) {
       </div>
       <div className="dial__needle" style={{ left: `${needleAt(source.freq)}%` }} />
       <div className="dial__row">
-        <span className="dial__label">SHORTWAVE · EN</span>
         <span className="dial__freq">
           <span className={"led" + (tuning ? " led--live" : "")} />
           {source.freq} {source.short}
