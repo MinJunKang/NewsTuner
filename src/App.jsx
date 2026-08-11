@@ -236,13 +236,21 @@ export default function App() {
   const [chatBusy, setChatBusy] = useState(false);
   const chatEnd = useRef(null);
 
-  useEffect(() => save("nt-keys", keys), [keys]);
-  useEffect(() => setSaveFailed(!save("nt-vocab", vocab)), [vocab]);
+  // useEffect 의 반환값은 정리 함수로 쓰입니다. save 가 boolean 을 돌려주므로
+  // 축약 본문으로 쓰면 React 가 true() 를 호출하려다 앱 전체가 죽습니다.
+  useEffect(() => {
+    save("nt-keys", keys);
+  }, [keys]);
+  useEffect(() => {
+    setSaveFailed(!save("nt-vocab", vocab));
+  }, [vocab]);
   // 붙여넣은 글은 기기에 남기지 않습니다. 앱을 닫으면 사라집니다.
   useEffect(() => {
     if (article && !article.pasted) save("nt-article", article);
   }, [article]);
-  useEffect(() => chatEnd.current?.scrollIntoView({ behavior: "smooth" }), [chat, chatBusy]);
+  useEffect(() => {
+    chatEnd.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chat, chatBusy]);
 
   const ready = keys.proxy || !!keys.gemini;
 
