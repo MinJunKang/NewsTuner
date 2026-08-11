@@ -105,9 +105,9 @@ const LEVELS = [
 // 통신사 단신이 400~900단어, Quanta·Atlantic 같은 장문 매체는 1,500~3,000단어입니다.
 // 예전 기준(200/400/800)은 장문 매체를 골라도 단신 분량밖에 안 나왔습니다.
 const LENGTHS = [
-  { id: "short", label: "짧게", hint: "약 400단어 · 5~6문단" },
-  { id: "mid", label: "보통", hint: "약 800단어 · 9~11문단" },
-  { id: "long", label: "길게", hint: "약 1,500단어 · 16~20문단" },
+  { id: "short", label: "짧게", hint: "약 400단어 · 통신사 단신 분량" },
+  { id: "mid", label: "보통", hint: "약 800단어 · 일반 웹기사 분량" },
+  { id: "long", label: "길게", hint: "약 1,500단어 · 장문 매체 분량" },
 ];
 
 const TABS = [

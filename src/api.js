@@ -266,10 +266,10 @@ export async function fetchArticle({
   // 길이를 못박아 두면 원문이 아무리 길어도 그만큼만 나옵니다.
   const lengthSpec =
     {
-      short: "5 to 6 paragraphs, 380-450 words total.",
-      mid: "9 to 11 paragraphs, 750-900 words total.",
-      long: "16 to 20 paragraphs, 1400-1700 words total.",
-    }[length] || "9 to 11 paragraphs, 750-900 words total.";
+      short: "about 400 words",
+      mid: "about 800 words",
+      long: "about 1500 words",
+    }[length] || "about 800 words";
 
   // 주간지에 "며칠 내"를 요구하면 해당 기사가 없어 모델이 헤맵니다.
   const recency = source.window || "the last few days";
@@ -300,14 +300,18 @@ Then write YOUR OWN English article reporting that story.
 
 Rules
 - Never copy sentences or distinctive phrases from the source. Re-report the facts in fresh wording.
-- Length: ${lengthSpec}
-- Fill that length by covering more of the story — what happened, the specific details and
-  figures, who is affected, the background, and what comes next. Do not pad, repeat yourself,
-  or reproduce the source's own sentences to reach the count. Everything must still be in
-  your own wording.
-- The word count is a target, not a quota. If what you actually found does not support that
-  much material, write a shorter article instead. Never invent detail, speculate, or restate
-  the same point in new words to reach the number.
+- Length: ${lengthSpec}. Use paragraphs of three to five sentences.
+- Every paragraph must carry something no earlier paragraph carried. Before writing each one,
+  ask what it adds. If it would make a point you already made, in different words, do not
+  write it — write a shorter article instead.
+- Ground each paragraph in something specific you actually found: a figure, a date, a named
+  person or organisation, a study, a concrete example. A paragraph that only asserts
+  something in general terms is the paragraph to cut.
+- Do not close by restating your opening. One ending is enough: say what happens next, and
+  stop.
+- The word count is a target, not a quota. If what you found does not support that much
+  material, write less. Never invent detail, speculate, or reproduce the source's own
+  sentences to reach the number. Everything must be in your own wording.
 - Reading level: ${levelSpec}
 - Factual and neutral. Only state what you actually found.
 - Quote a person directly only if you actually found that exact quote in your sources.
