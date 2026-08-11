@@ -203,6 +203,14 @@ async function gemini({
 const ARTICLE_SCHEMA = {
   type: "object",
   properties: {
+    // 조건에 맞는 기사를 못 찾았을 때 쓰는 자리입니다. 스키마가 강제되므로
+    // error 만 담은 객체는 돌려줄 수 없고, 나머지는 빈 값으로 채워 옵니다.
+    error: {
+      type: "string",
+      description:
+        'Leave this out entirely unless no suitable article was found. If none was found, ' +
+        'set it to "no suitable article found" and leave every other field empty.',
+    },
     title: { type: "string", description: "The English headline you wrote." },
     titleKo: { type: "string", description: "KOREAN ONLY. The headline in Korean." },
     outlet: { type: "string", description: "The publication the story came from." },
@@ -307,6 +315,15 @@ Report on that exact story, not a different one.
 ${focusLine}`;
 
   const prompt = `${intro}
+What counts as a story here
+- It must be a narrative news article: written by a named reporter or a wire service, and
+  published once on a fixed date.
+- Do not use an election guide, a results dashboard, a topic or tag hub, a category page, a
+  live blog, or any page that is updated continuously. Those have no fixed publication date
+  and their content changes after you read them.
+- If nothing you found meets this, set "error" to "no suitable article found" and leave the
+  other fields empty. Do not report an unsuitable page instead.
+
 Then write YOUR OWN English article reporting that story.
 
 Rules
@@ -393,6 +410,9 @@ above. Exclude the story you just reported. If you found no others, use an empty
 
   const article = extractJson(text);
 
+  if (article.error)
+    throw new Error("조건에 맞는 기사를 찾지 못했습니다. 매체나 조건을 바꿔 보세요.");
+
   // 화면은 paragraphs 를 그대로 렌더링하므로, 여기서 모양을 보장하지 않으면
   // 모델이 형식을 어겼을 때 렌더링 도중 터져 빈 화면이 됩니다.
   article.paragraphs = (Array.isArray(article.paragraphs) ? article.paragraphs : [])
@@ -416,6 +436,10 @@ above. Exclude the story you just reported. If you found no others, use an empty
   // 가짜인 경우가 많아 도메인 검사로도 걸러지지 않고, 눌러야 404 임을 압니다.
   // 그라운딩 주소는 구글이 실제로 열어본 것이라 존재가 보장됩니다.
   article.url = article.sources[0]?.uri || "";
+
+  // 출처가 없으면 원문과 대조할 길이 없습니다. 검증할 수 없는 기사를 보여주는 것은
+  // 이 앱의 전제를 무너뜨리므로, 본문이 멀쩡해도 표시하지 않습니다.
+  if (!article.url) throw new Error("출처를 확인할 수 없어 기사를 표시하지 않습니다.");
 
   article.related = (Array.isArray(article.related) ? article.related : [])
     .map((r) => ({
@@ -473,6 +497,10 @@ export async function findStories({ geminiKey, proxy, proxyToken, source, topic,
 
   const prompt = `Use Google Search to list real stories published in ${recency} by ${source.label} on the topic: ${topic}.
 ${focusLine}
+Only list narrative news articles: written by a named reporter or a wire service, published
+once on a fixed date. Skip election guides, results dashboards, topic or tag hubs, category
+pages, live blogs and any continuously updated page.
+
 List up to 5 stories, most relevant first. Use each story's own published headline exactly as
 it appears — do not rewrite or translate it in the "title" field. Every story needs a real
 canonical URL on the publisher's own site; drop any story you cannot link. Do not summarise
