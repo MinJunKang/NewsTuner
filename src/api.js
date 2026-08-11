@@ -258,7 +258,7 @@ export async function fetchArticle({
       "Attribute claims the way reporters do (officials said, according to the filing). " +
       "Use the field's own terminology without pausing to explain it, and choose precise " +
       "specific nouns over general ones. " +
-      "Include one paragraph of background explaining why this matters now. " +
+      "If your sources supply background on why this matters now, give it a paragraph. " +
       "Do not simplify anything for a learner, and do not use textbook connectors " +
       "such as moreover, furthermore, or in conclusion.",
   }[level];
@@ -314,6 +314,9 @@ Rules
   sentences to reach the number. Everything must be in your own wording.
 - Reading level: ${levelSpec}
 - Factual and neutral. Only state what you actually found.
+- Write only what your sources report. Do not add background, context, analysis or scene
+  detail out of your own knowledge, however likely it seems. If a fact is not in what you
+  found, it does not go in the article.
 - Quote a person directly only if you actually found that exact quote in your sources.
   Never invent a quote or put words in a named person's mouth. When unsure, paraphrase
   with attribution instead.
