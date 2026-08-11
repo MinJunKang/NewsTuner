@@ -11,8 +11,10 @@
   --paper-ink: #1a1d21;
   --paper-dim: #6a6f76;
   --paper-line: #d8d2c4;
-  /* 관용구 표시용 형광펜 색 */
+  /* 관용구 표시용 형광펜. 바탕이 테마와 무관하게 고정이므로 글자색도
+     고정이어야 합니다. paper-ink 를 쓰면 다크 모드에서 흰 글자가 됩니다. */
   --mark: #f0dd8f;
+  --mark-ink: #1a1d21;
   --mono: "IBM Plex Mono", ui-monospace, monospace;
   --serif: "Newsreader", Georgia, serif;
   --sans: "Inter", system-ui, sans-serif;
@@ -686,7 +688,9 @@ a {
   background: var(--mark);
   box-shadow: 0 0 0 1px var(--mark);
   border-radius: 1px;
-  color: var(--paper-ink);
+  /* 테마를 따라가면 안 됩니다. 다크 모드의 paper-ink 는 흰색이라
+     노란 바탕 위에 흰 글자가 되어 오히려 못 읽습니다. */
+  color: var(--mark-ink);
 }
 
 /* 표현 모드에서 첫 단어를 눌렀을 때, 어디서 시작했는지 보여줍니다. */
