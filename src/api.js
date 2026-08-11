@@ -21,7 +21,13 @@ export function extractJson(text) {
   const start = stripped.indexOf("{");
   const end = stripped.lastIndexOf("}");
   if (start === -1 || end === -1) throw new Error("모델이 JSON 형식으로 답하지 않았습니다.");
-  return JSON.parse(stripped.slice(start, end + 1));
+  try {
+    return JSON.parse(stripped.slice(start, end + 1));
+  } catch {
+    // JSON.parse 의 "Unexpected token" 메시지를 그대로 보여주면 사용자가 할 수
+    // 있는 일이 없습니다. 다시 시도하면 대개 풀립니다.
+    throw new Error("모델 응답을 읽지 못했습니다. 다시 시도해 주세요.");
+  }
 }
 
 // 링크 주소는 모델이 만든 값입니다. 검사 없이 href 에 넣으면 javascript: 스킴이
@@ -177,6 +183,58 @@ async function gemini({
  * 뉴스 수집
  * ------------------------------------------------------------------ */
 
+// 기사도 스키마로 형식을 강제합니다. 프롬프트로만 JSON 을 지시하면 본문에 따옴표나
+// 괄호가 섞였을 때 파싱이 깨집니다.
+const ARTICLE_SCHEMA = {
+  type: "object",
+  properties: {
+    title: { type: "string", description: "The English headline you wrote." },
+    titleKo: { type: "string", description: "KOREAN ONLY. The headline in Korean." },
+    outlet: { type: "string", description: "The publication the story came from." },
+    url: {
+      type: "string",
+      description:
+        "Required. Canonical URL of the original story on the publisher's own site. " +
+        "Never blank, never a search page, homepage, redirect or guessed address.",
+    },
+    published: { type: "string", description: "Publication date as YYYY-MM-DD." },
+    summaryKo: { type: "string", description: "KOREAN ONLY. One sentence summarising the story." },
+    paragraphs: {
+      type: "array",
+      items: { type: "string" },
+      description: "The article you wrote, in English, one string per paragraph.",
+    },
+    keywords: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          word: { type: "string", description: "An English word or phrase from the article." },
+          ko: { type: "string", description: "KOREAN ONLY. What it means." },
+          note: { type: "string", description: "KOREAN ONLY. One line on how it is used here." },
+        },
+        required: ["word", "ko", "note"],
+      },
+    },
+    related: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          title: { type: "string", description: "The story's own English headline." },
+          titleKo: { type: "string", description: "KOREAN ONLY. That headline in Korean." },
+          url: { type: "string", description: "Required. Canonical URL, same rule as above." },
+        },
+        required: ["title", "titleKo", "url"],
+      },
+    },
+  },
+  required: [
+    "title", "titleKo", "outlet", "url", "published",
+    "summaryKo", "paragraphs", "keywords", "related",
+  ],
+};
+
 export async function fetchArticle({
   geminiKey,
   proxy,
@@ -263,19 +321,30 @@ searching, ordered by how closely they match what was asked for. Use each story'
 headline, not one you wrote. Every entry needs a real canonical URL under the same rule as
 above. Exclude the story you just reported. If you found no others, use an empty array.`;
 
-  // 검색 그라운딩과 스키마를 함께 쓰는 건 아직 미리보기 단계라, 기사 쪽은
-  // 프롬프트로 형식을 지시하고 아래에서 모양을 검사합니다.
-  const { text, cand } = await gemini({
-    geminiKey,
-    proxy,
-    proxyToken,
-    model: MODELS.news,
-    // 기본값은 medium 입니다. 생각 토큰은 출력 단가로 과금되고 이 호출이 가장
-    // 비싸므로 low 로 낮춥니다. minimal 까지 내리면 검색 결과 종합이 부실해집니다.
-    thinkingLevel: "low",
-    contents: [{ role: "user", parts: [{ text: prompt }] }],
-    tools: [{ google_search: {} }],
-  });
+  const call = (schema) =>
+    gemini({
+      geminiKey,
+      proxy,
+      proxyToken,
+      model: MODELS.news,
+      // 기본값은 medium 입니다. 생각 토큰은 출력 단가로 과금되고 이 호출이 가장
+      // 비싸므로 low 로 낮춥니다. minimal 까지 내리면 검색 결과 종합이 부실해집니다.
+      thinkingLevel: "low",
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      tools: [{ google_search: {} }],
+      schema,
+    });
+
+  // 검색 그라운딩과 스키마를 함께 쓰는 것은 아직 미리보기 단계라, 거부당하면
+  // 스키마 없이 한 번 더 시도합니다. 프롬프트에 형식이 그대로 적혀 있어
+  // 그 경로로도 동작합니다.
+  let text, cand;
+  try {
+    ({ text, cand } = await call(ARTICLE_SCHEMA));
+  } catch (e) {
+    if (e.status !== 400 || !/schema|response_?format/i.test(e.message)) throw e;
+    ({ text, cand } = await call(undefined));
+  }
 
   const article = extractJson(text);
 
