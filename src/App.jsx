@@ -578,7 +578,6 @@ export default function App() {
                         <li key={i}>
                           <a href={s.url} target="_blank" rel="noreferrer">
                             <span className="stories__en">{s.title}</span>
-                            {s.titleKo && <span className="stories__ko">{s.titleKo}</span>}
                             {s.summaryKo && <span className="stories__sum">{s.summaryKo}</span>}
                           </a>
                           <span className="stories__date">{s.published}</span>

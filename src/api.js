@@ -412,7 +412,6 @@ const STORIES_SCHEMA = {
             type: "string",
             description: "The story's own published headline, in English. Do not rewrite it.",
           },
-          titleKo: { type: "string", description: "KOREAN ONLY. That headline in Korean." },
           url: {
             type: "string",
             description:
@@ -425,7 +424,7 @@ const STORIES_SCHEMA = {
             description: "KOREAN ONLY. One sentence on what the story is about.",
           },
         },
-        required: ["title", "titleKo", "url", "published", "summaryKo"],
+        required: ["title", "url", "published", "summaryKo"],
       },
     },
   },
@@ -441,13 +440,13 @@ export async function findStories({ geminiKey, proxy, proxyToken, source, topic,
 
   const prompt = `Use Google Search to list real stories published in ${recency} by ${source.label} on the topic: ${topic}.
 ${focusLine}
-List up to 8 stories, most relevant first. Use each story's own published headline exactly as
+List up to 5 stories, most relevant first. Use each story's own published headline exactly as
 it appears — do not rewrite or translate it in the "title" field. Every story needs a real
 canonical URL on the publisher's own site; drop any story you cannot link. Do not summarise
 the article body beyond one short Korean sentence saying what it is about.
 
 Reply with JSON and nothing else:
-{"stories": [{"title": "...", "titleKo": "...", "url": "...", "published": "YYYY-MM-DD", "summaryKo": "..."}]}`;
+{"stories": [{"title": "...", "url": "...", "published": "YYYY-MM-DD", "summaryKo": "..."}]}`;
 
   const { text } = await gemini({
     geminiKey,
@@ -465,13 +464,12 @@ Reply with JSON and nothing else:
   const list = (Array.isArray(parsed?.stories) ? parsed.stories : [])
     .map((s) => ({
       title: typeof s?.title === "string" ? s.title.trim() : "",
-      titleKo: typeof s?.titleKo === "string" ? s.titleKo.trim() : "",
       published: typeof s?.published === "string" ? s.published.trim() : "",
       summaryKo: typeof s?.summaryKo === "string" ? s.summaryKo.trim() : "",
       url: safeUrl(s?.url) || "",
     }))
     .filter((s) => s.title && s.url)
-    .slice(0, 8);
+    .slice(0, 5);
 
   if (!list.length) throw new Error("기사를 찾지 못했습니다. 조건을 바꿔 보세요.");
   return list;
