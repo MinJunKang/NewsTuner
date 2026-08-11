@@ -109,12 +109,28 @@ const load = (k, fb) => {
     return fb;
   }
 };
+// 실패를 삼키면 화면에는 저장된 것처럼 보이는데 앱을 껐다 켜면 사라집니다.
+// 성공 여부를 돌려주어 부르는 쪽에서 알릴 수 있게 합니다.
 const save = (k, v) => {
   try {
     localStorage.setItem(k, JSON.stringify(v));
+    return true;
   } catch {
-    /* 저장 공간이 없어도 이번 세션은 계속 씁니다 */
+    return false;
   }
+};
+
+// 남이 준 파일일 수도 있으므로 모양을 검사하고 길이를 자릅니다.
+const cleanEntry = (e) => {
+  const word = typeof e?.word === "string" ? e.word.trim().slice(0, 100) : "";
+  if (!word) return null;
+  const str = (v, n) => (typeof v === "string" ? v.trim().slice(0, n) : "");
+  return {
+    word,
+    ko: str(e.ko, 300),
+    example: str(e.example, 500),
+    at: Number.isFinite(e.at) ? e.at : Date.now(),
+  };
 };
 
 /* ---------------- text utils ---------------- */
@@ -191,13 +207,17 @@ export default function App() {
   // 금방 닳으므로, 이번 세션 동안 본 결과는 기억해 둡니다.
   const lookupCache = useRef(new Map());
 
+  const [saveFailed, setSaveFailed] = useState(false);
+  const [ioMsg, setIoMsg] = useState("");
+  const fileRef = useRef(null);
+
   const [chat, setChat] = useState([]);
   const [draft, setDraft] = useState("");
   const [chatBusy, setChatBusy] = useState(false);
   const chatEnd = useRef(null);
 
   useEffect(() => save("nt-keys", keys), [keys]);
-  useEffect(() => save("nt-vocab", vocab), [vocab]);
+  useEffect(() => setSaveFailed(!save("nt-vocab", vocab)), [vocab]);
   useEffect(() => article && save("nt-article", article), [article]);
   useEffect(() => chatEnd.current?.scrollIntoView({ behavior: "smooth" }), [chat, chatBusy]);
 
@@ -297,6 +317,51 @@ export default function App() {
   }
 
   const articleUrl = safeUrl(article?.url);
+  function exportVocab() {
+    const body = JSON.stringify(
+      { app: "news-tuner", version: 1, exportedAt: new Date().toISOString(), vocab },
+      null,
+      2
+    );
+    const url = URL.createObjectURL(new Blob([body], { type: "application/json" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `news-tuner-vocab-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setIoMsg(`${vocab.length}개를 파일로 내보냈습니다.`);
+  }
+
+  async function importVocab(e) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // 같은 파일을 다시 골라도 동작하게 비웁니다
+    if (!file) return;
+    try {
+      const parsed = JSON.parse(await file.text());
+      const list = Array.isArray(parsed) ? parsed : parsed?.vocab;
+      if (!Array.isArray(list)) throw new Error("shape");
+
+      // 덮어쓰지 않고 합칩니다. 파일을 잘못 골라도 기존 단어장이 남습니다.
+      const have = new Set(vocab.map((v) => v.word));
+      const added = [];
+      for (const raw of list) {
+        const entry = cleanEntry(raw);
+        if (entry && !have.has(entry.word)) {
+          have.add(entry.word);
+          added.push(entry);
+        }
+      }
+      setVocab([...added, ...vocab]);
+      setIoMsg(
+        added.length
+          ? `${added.length}개를 더했습니다. ${list.length - added.length}개는 이미 있거나 형식이 맞지 않아 건너뛰었습니다.`
+          : "새로 더할 단어가 없습니다."
+      );
+    } catch {
+      setIoMsg("단어장 파일이 아니거나 내용이 깨져 있습니다.");
+    }
+  }
+
   const saved = (w) => vocab.some((v) => v.word === w);
   const addWord = (e) => !saved(e.word) && setVocab([{ ...e, at: Date.now() }, ...vocab]);
 
@@ -399,6 +464,21 @@ export default function App() {
                 <h2 className="article__title">{article.title}</h2>
                 <p className="article__titleko">{article.titleKo}</p>
 
+                {articleUrl ? (
+                  <a
+                    className="article__origin"
+                    href={articleUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    원문 기사 열기 →
+                  </a>
+                ) : (
+                  <span className="article__origin article__origin--none">
+                    원문 링크를 받지 못했습니다
+                  </span>
+                )}
+
                 <div className="article__modes">
                   <span className="hint">탭하면</span>
                   <Chip on={mode === "word"} onClick={() => setMode("word")}>
@@ -478,13 +558,6 @@ export default function App() {
                 )}
 
                 <div className="sources">
-                  {articleUrl ? (
-                    <a href={articleUrl} target="_blank" rel="noreferrer">
-                      원문 기사 열기 →
-                    </a>
-                  ) : (
-                    <span className="hint">원문 링크를 받지 못했습니다</span>
-                  )}
                   {article.sources?.map((s, i) => {
                     const href = safeUrl(s?.uri);
                     if (!href) return null;
@@ -533,6 +606,29 @@ export default function App() {
         )}
 
         {/* ---------- vocab ---------- */}
+        {tab === "vocab" && (
+          <div className="vocab__bar">
+            <button onClick={exportVocab} disabled={vocab.length === 0}>
+              내보내기
+            </button>
+            <button onClick={() => fileRef.current?.click()}>불러오기</button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="application/json,.json"
+              hidden
+              onChange={importVocab}
+            />
+            <span className="hint">{vocab.length}개</span>
+          </div>
+        )}
+        {tab === "vocab" && ioMsg && <p className="io-msg">{ioMsg}</p>}
+        {tab === "vocab" && saveFailed && (
+          <p className="error">
+            저장 공간이 가득 차 단어장이 기기에 저장되지 않았습니다. 내보내기로 백업하세요.
+          </p>
+        )}
+
         {tab === "vocab" &&
           (vocab.length === 0 ? (
             <div className="empty">
