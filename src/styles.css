@@ -192,9 +192,11 @@ a {
 .console__title {
   margin: 0;
   font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.3em;
-  color: var(--dim);
+  font-size: 19px;
+  font-weight: 600;
+  /* 커진 만큼 자간을 줄여야 한 줄에 들어오고 덩어리로 읽힙니다. */
+  letter-spacing: 0.16em;
+  color: var(--ink);
 }
 
 .link {
