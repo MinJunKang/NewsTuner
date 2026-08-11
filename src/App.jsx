@@ -154,6 +154,50 @@ const cleanEntry = (e) => {
 const splitSentences = (p) => p.match(/[^.!?]+[.!?]+["'’)\]]*\s*|[^.!?]+$/g) || [p];
 const cleanWord = (t) => t.replace(/^[^A-Za-z'’-]+|[^A-Za-z'’-]+$/g, "");
 
+/* ---------------- 붙여넣기 본문 추리기 ---------------- */
+
+// 페이지를 통째로 복사하면 메뉴, 공유 버튼, 관련 기사, 푸터가 함께 딸려옵니다.
+// 아래 말로 시작하는 줄은 본문이 아닙니다.
+const BOILER =
+  /^(share|tweet|save|print|copy link|advertisement|sponsored|subscribe|sign ?in|log ?in|menu|search|skip to|read more|related|more from|most popular|newsletter|follow|comments?|photo|image|credit|getty|copyright|©|all rights reserved|terms|privacy|cookie|home|sections?|watch|listen|live|donate|support)\b/i;
+
+const wordsIn = (l) => l.split(/\s+/).filter(Boolean).length;
+
+// 문장처럼 생긴 줄만 본문으로 봅니다. 메뉴 항목은 짧고 마침표가 없습니다.
+const looksLikeBody = (l) =>
+  !BOILER.test(l) && wordsIn(l) >= 12 && (/[.!?]["'’)\]]?$/.test(l) || wordsIn(l) >= 25);
+
+function extractBody(raw) {
+  const lines = raw
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (!lines.length) return null;
+
+  const flags = lines.map(looksLikeBody);
+  const first = flags.indexOf(true);
+  const last = flags.lastIndexOf(true);
+  // 본문처럼 보이는 줄이 하나도 없으면 손대지 않습니다.
+  if (first === -1) return null;
+
+  // 본문 구간 안에서도, 중간에 끼어든 짧은 메뉴 줄은 걸러냅니다.
+  const paragraphs = lines
+    .slice(first, last + 1)
+    .filter((l, i) => flags[first + i] || (!BOILER.test(l) && wordsIn(l) >= 8));
+
+  // 제목은 본문 바로 위에서 찾습니다. 너무 멀리 올라가면 메뉴를 집습니다.
+  let title = "";
+  for (let i = first - 1; i >= 0 && i >= first - 6; i--) {
+    const l = lines[i];
+    if (!BOILER.test(l) && wordsIn(l) >= 3 && wordsIn(l) <= 20) {
+      title = l;
+      break;
+    }
+  }
+
+  return { title, paragraphs, removed: lines.length - paragraphs.length };
+}
+
 // 화면이 paragraphs 를 그대로 그리므로, 모양이 깨진 기사는 아예 들이지 않습니다.
 const isArticle = (a) =>
   !!a && Array.isArray(a.paragraphs) && a.paragraphs.length > 0;
@@ -214,6 +258,7 @@ export default function App() {
   const [focus, setFocus] = useState("");
   const [pasteText, setPasteText] = useState("");
   const [pasteMsg, setPasteMsg] = useState("");
+  const [clean, setClean] = useState(true);
   const [stories, setStories] = useState([]);
   const [finding, setFinding] = useState(false);
   const [panelOpen, setPanelOpen] = useState(true);
@@ -439,21 +484,34 @@ export default function App() {
   // 문자열이 아니면 무시하고 입력칸 내용을 씁니다.
   function readPasted(arg) {
     const raw = typeof arg === "string" ? arg : pasteText;
-    const blocks = raw
-      .split(/\n\s*\n/)
-      .map((b) => b.trim().replace(/\s*\n\s*/g, " "))
-      .filter(Boolean);
-    if (!blocks.length) {
-      setPasteMsg("읽을 내용이 없습니다.");
-      return;
+
+    let title = "붙여넣은 글";
+    let paragraphs = [];
+    let note = "";
+
+    // 페이지를 통째로 복사한 경우 메뉴와 푸터가 섞여 있습니다. 먼저 추려봅니다.
+    const picked = clean ? extractBody(raw) : null;
+    if (picked) {
+      if (picked.title) title = picked.title;
+      paragraphs = picked.paragraphs;
+      if (picked.removed > 0) note = `본문이 아닌 ${picked.removed}줄을 걸러냈습니다.`;
+    } else {
+      // 추리기를 껐거나 본문을 못 찾으면 빈 줄 기준으로만 나눕니다.
+      const blocks = raw
+        .split(/\n\s*\n/)
+        .map((b) => b.trim().replace(/\s*\n\s*/g, " "))
+        .filter(Boolean);
+      paragraphs = blocks;
+      if (blocks.length > 1 && blocks[0].length <= 120) {
+        title = blocks[0];
+        paragraphs = blocks.slice(1);
+      }
+      if (clean) note = "본문을 가려내지 못해 붙여넣은 그대로 보여줍니다.";
     }
 
-    // 첫 덩어리가 짧으면 제목으로 봅니다.
-    let title = "붙여넣은 글";
-    let paragraphs = blocks;
-    if (blocks.length > 1 && blocks[0].length <= 120) {
-      title = blocks[0];
-      paragraphs = blocks.slice(1);
+    if (!paragraphs.length) {
+      setPasteMsg("읽을 내용이 없습니다.");
+      return;
     }
 
     setSheet(null);
@@ -472,7 +530,7 @@ export default function App() {
       related: [],
       sources: [],
     });
-    setPasteMsg("");
+    setPasteMsg(note);
     setPanelOpen(false);
     setTab("read");
   }
@@ -705,7 +763,14 @@ export default function App() {
                         지우기
                       </button>
                     )}
+                    <Chip on={clean} onClick={() => setClean((v) => !v)}>
+                      본문만 추리기
+                    </Chip>
                   </div>
+                  <p className="hint">
+                    페이지를 통째로 복사하면 메뉴와 푸터가 섞입니다. 켜 두면 문장처럼 생긴 줄만
+                    남깁니다. 잘못 걸러내면 끄고 다시 읽으세요.
+                  </p>
                   <button
                     className="btn"
                     onClick={() => readPasted()}
