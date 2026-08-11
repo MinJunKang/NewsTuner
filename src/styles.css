@@ -238,6 +238,25 @@ a {
   color: var(--faint);
 }
 
+.focus {
+  width: 100%;
+  margin-top: 10px;
+  background: #161f28;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 9px 11px;
+  font-size: 14px;
+}
+
+.focus:focus {
+  border-color: var(--signal);
+  outline: none;
+}
+
+.focus::placeholder {
+  color: var(--faint);
+}
+
 .btn {
   display: block;
   width: 100%;

@@ -183,6 +183,7 @@ export default function App() {
   const [field, setField] = useState(FIELDS[0]);
   const [source, setSource] = useState(FIELDS[0].sources[0]);
   const [level, setLevel] = useState(LEVELS[1]);
+  const [focus, setFocus] = useState("");
   const [panelOpen, setPanelOpen] = useState(true);
 
   const [article, setArticle] = useState(() => {
@@ -229,6 +230,7 @@ export default function App() {
         proxyToken: keys.token,
         source,
         topic: field.topic,
+        focus: focus.trim(),
         level: level.id,
       });
       setArticle(a);
@@ -239,7 +241,7 @@ export default function App() {
     } finally {
       setTuning(false);
     }
-  }, [keys, source, field, level]);
+  }, [keys, source, field, level, focus]);
 
   async function open(kind, term, key, fetcher) {
     const cached = lookupCache.current.get(key);
@@ -353,6 +355,19 @@ export default function App() {
                 ))}
                 <span className="hint">{level.hint}</span>
               </div>
+
+              {/* 한글 조합 중 Enter 는 글자를 확정하는 키라, 조합 중에는 검색하지 않습니다. */}
+              <input
+                className="focus"
+                value={focus}
+                maxLength={200}
+                onChange={(e) => setFocus(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
+                  if (!tuning && ready) tuneIn();
+                }}
+                placeholder="찾고 싶은 내용 (선택) — 예: 반도체 수출 규제, AI 저작권 소송"
+              />
               <button className="btn" onClick={tuneIn} disabled={tuning || !ready}>
                 {tuning ? "수신 중…" : ready ? "주파수 맞추기" : "설정에서 키를 먼저 넣으세요"}
               </button>

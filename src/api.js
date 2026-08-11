@@ -164,7 +164,15 @@ async function gemini({
  * 뉴스 수집
  * ------------------------------------------------------------------ */
 
-export async function fetchArticle({ geminiKey, proxy, proxyToken, source, topic, level }) {
+export async function fetchArticle({
+  geminiKey,
+  proxy,
+  proxyToken,
+  source,
+  topic,
+  focus,
+  level,
+}) {
   const levelSpec = {
     easy: "CEFR A2-B1. Sentences of 12 words or fewer. Common vocabulary only.",
     mid: "CEFR B2. Natural news register, moderate sentence length.",
@@ -183,10 +191,21 @@ export async function fetchArticle({ geminiKey, proxy, proxyToken, source, topic
   }[level];
 
   // 주간지에 "며칠 내"를 요구하면 해당 기사가 없어 모델이 헤맵니다.
-  const window = source.window || "the last few days";
+  const recency = source.window || "the last few days";
 
-  const prompt = `Use Google Search to find a real story published in ${window} by ${source.label} on the topic: ${topic}.
+  // 사용자가 방향을 적어 넣을 수 있습니다. 다만 요청에 맞는 기사가 없을 때
+  // 억지로 지어내면 "실제 뉴스를 읽는다"는 앱의 전제가 무너집니다.
+  const focusLine = focus
+    ? `
+The reader is looking for this in particular: ${focus}
+Treat it as a preference within that outlet and topic. If nothing published in ${recency} by
+${source.label} matches it, report the closest real story you actually found instead, and do
+not stretch or invent a story to fit the request.
+`
+    : "";
 
+  const prompt = `Use Google Search to find a real story published in ${recency} by ${source.label} on the topic: ${topic}.
+${focusLine}
 Then write YOUR OWN English article reporting that story.
 
 Rules
