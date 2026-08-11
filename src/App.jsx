@@ -210,19 +210,51 @@ function extractBody(raw) {
   if (!lines.length) return null;
 
   const flags = lines.map(looksLikeBody);
-  const first = flags.indexOf(true);
-  const last = flags.lastIndexOf(true);
-  // 본문처럼 보이는 줄이 하나도 없으면 손대지 않습니다.
-  if (first === -1) return null;
+  if (!flags.includes(true)) return null;
 
-  // 본문 구간 안에서도, 중간에 끼어든 짧은 메뉴 줄은 걸러냅니다.
+  // 처음부터 끝까지 한 덩어리로 잡으면, 하단 관련 기사 요약문도 문장처럼
+  // 생겨서 끝 지점이 거기까지 밀려납니다. 본문처럼 보이는 줄이 이어지는
+  // 구간을 여러 개로 나눈 뒤, 가장 두꺼운 구간 하나만 씁니다. 관련 기사
+  // 묶음은 본문과 떨어진 별도 덩어리로 잡히고, 본문보다 얇습니다.
+  const runs = [];
+  let cur = null;
+  let gap = 0;
+  for (let i = 0; i < lines.length; i++) {
+    if (flags[i]) {
+      if (!cur) cur = { start: i, end: i };
+      cur.end = i;
+      gap = 0;
+    } else if (cur) {
+      // 상투 문구(관련 기사, 뉴스레터, 구독 안내)는 대개 본문 끝을 알립니다.
+      // 사진 설명처럼 본문 중간에 낄 수도 있어, 빈 줄 두 개까지는 참습니다.
+      if (BOILER.test(lines[i]) || ++gap > 2) {
+        runs.push(cur);
+        cur = null;
+        gap = 0;
+      }
+    }
+  }
+  if (cur) runs.push(cur);
+
+  let best = runs[0];
+  let bestWords = 0;
+  for (const r of runs) {
+    let w = 0;
+    for (let i = r.start; i <= r.end; i++) if (flags[i]) w += wordsIn(lines[i]);
+    if (w > bestWords) {
+      bestWords = w;
+      best = r;
+    }
+  }
+
+  // 고른 구간 안에서도, 중간에 끼어든 짧은 메뉴 줄은 걸러냅니다.
   const paragraphs = lines
-    .slice(first, last + 1)
-    .filter((l, i) => flags[first + i] || (!BOILER.test(l) && wordsIn(l) >= 8));
+    .slice(best.start, best.end + 1)
+    .filter((l, i) => flags[best.start + i] || (!BOILER.test(l) && wordsIn(l) >= 8));
 
   // 제목은 본문 바로 위에서 찾습니다. 너무 멀리 올라가면 메뉴를 집습니다.
   let title = "";
-  for (let i = first - 1; i >= 0 && i >= first - 6; i--) {
+  for (let i = best.start - 1; i >= 0 && i >= best.start - 6; i--) {
     const l = lines[i];
     if (!BOILER.test(l) && wordsIn(l) >= 3 && wordsIn(l) <= 20) {
       title = l;
