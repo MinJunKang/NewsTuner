@@ -978,8 +978,21 @@ export default function App() {
                           <span key={si}>
                             {toks.map((tok, ti) => {
                               const w = cleanWord(tok);
-                              if (!w) return <span key={ti}>{tok}</span>;
                               const marked = marks.get(ti);
+                              // 공백도 표현 안쪽이면 함께 칠해야 한 덩어리로 보입니다.
+                              // 빼면 단어마다 표시가 끊겨 낱말을 고르는 것처럼 보입니다.
+                              if (!w)
+                                return marked ? (
+                                  <span
+                                    key={ti}
+                                    className="w w--idiom"
+                                    onClick={() => openPhrase(marked, s)}
+                                  >
+                                    {tok}
+                                  </span>
+                                ) : (
+                                  <span key={ti}>{tok}</span>
+                                );
                               const isAnchor =
                                 mode === "phrase" &&
                                 anchor &&

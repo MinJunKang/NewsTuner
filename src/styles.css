@@ -666,9 +666,13 @@ a {
   border-bottom: 1px solid var(--paper-line);
 }
 
-/* 찾아낸 관용구는 밑줄로 표시합니다. 한 번 누르면 바로 열립니다. */
+/* 찾아낸 관용구는 음영으로 표시합니다. 밑줄은 잘 보이지 않고, 단어 사이가
+   비어 보여 낱말을 고르는 것처럼 읽힙니다. 공백 토큰까지 같은 배경을 칠하므로
+   표현 전체가 하나의 띠로 보입니다. */
 .w--idiom {
-  border-bottom: 1px dashed var(--signal);
+  background: rgba(61, 219, 192, 0.17);
+  box-shadow: 0 0 0 1px rgba(61, 219, 192, 0.17);
+  color: var(--ink);
 }
 
 /* 표현 모드에서 첫 단어를 눌렀을 때, 어디서 시작했는지 보여줍니다. */
