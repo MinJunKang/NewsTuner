@@ -312,6 +312,12 @@ URL: ${story.url}
 Report on that exact story, not a different one.
 `
     : `Use Google Search to find a real story published in ${recency} by ${source.label} on the topic: ${topic}.
+
+Search ${source.label}'s own site. Put site:${source.domain} in your search queries, and run
+more than one query with different wording before deciding. Every candidate must live on
+${source.domain}. If another outlet covered the same event, that does not count — you need
+${source.label}'s own reporting. If ${source.label} has not covered this topic in ${recency},
+say so with "error" rather than substituting another outlet.
 ${focusLine}`;
 
   const prompt = `${intro}
@@ -502,6 +508,10 @@ export async function findStories({ geminiKey, proxy, proxyToken, source, topic,
     : "";
 
   const prompt = `Use Google Search to list real stories published in ${recency} by ${source.label} on the topic: ${topic}.
+
+Search ${source.label}'s own site: put site:${source.domain} in your queries and run several
+with different wording. Every story you list must live on ${source.domain}. Do not fill the
+list out with another outlet's coverage of the same events.
 ${focusLine}
 Only list narrative news articles: written by a named reporter or a wire service, published
 once on a fixed date. Skip election guides, results dashboards, topic or tag hubs, category
