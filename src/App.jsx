@@ -1224,6 +1224,22 @@ export default function App() {
               </div>
             )}
 
+            <div className="field">
+              <label>기사 배경</label>
+              <div className="row__chips">
+                <Chip on={!dark} onClick={() => setDark(false)}>
+                  밝게
+                </Chip>
+                <Chip on={dark} onClick={() => setDark(true)}>
+                  어둡게
+                </Chip>
+              </div>
+              <small>
+                기사를 읽는 화면의 배경입니다. 읽기 화면 오른쪽 위 ☾ 버튼으로도 바꿀 수
+                있습니다. 나머지 화면은 원래 어두운 색입니다.
+              </small>
+            </div>
+
             {ready && <p className="ok">준비됐습니다. 읽기 탭에서 주파수를 맞추세요.</p>}
           </div>
         )}

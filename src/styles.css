@@ -696,6 +696,11 @@ a {
   box-shadow: 0 0 0 2px rgba(61, 219, 192, 0.22);
 }
 
+/* 설정 탭에서는 칩 줄에 위쪽 여백이 필요합니다. */
+.field .row__chips {
+  margin-top: 6px;
+}
+
 .theme {
   margin-left: auto;
   padding: 3px 8px;
