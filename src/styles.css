@@ -331,6 +331,59 @@ a {
   color: var(--faint);
 }
 
+.howto {
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 8px 11px;
+}
+
+.howto summary {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--dim);
+  cursor: pointer;
+}
+
+.howto[open] summary {
+  color: var(--signal);
+  margin-bottom: 8px;
+}
+
+.howto p,
+.howto li {
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--dim);
+}
+
+.howto p + p,
+.howto ol,
+.howto ul {
+  margin-top: 6px;
+}
+
+.howto ol,
+.howto ul {
+  padding-left: 18px;
+}
+
+.howto li {
+  margin-top: 3px;
+}
+
+.howto b {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.howto__h {
+  margin-top: 12px !important;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--faint);
+}
+
 .paste__row {
   display: flex;
   gap: 6px;
