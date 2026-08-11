@@ -292,8 +292,9 @@ a {
   color: var(--signal);
 }
 
+/* 단순한 빈칸이 아니라 주의 신호이므로 흐리게 두지 않습니다. */
 .article__origin--none {
-  color: var(--faint);
+  color: var(--warn);
 }
 
 .vocab__bar {

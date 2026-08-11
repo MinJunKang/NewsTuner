@@ -1012,8 +1012,10 @@ export default function App() {
                       원문 기사 열기 →
                     </a>
                   ) : (
+                    // 링크는 그라운딩 출처에서만 옵니다. 비어 있다는 것은 검색 결과에
+                    // 근거하지 않았을 수 있다는 뜻이라, 단순한 빈칸이 아닙니다.
                     <span className="article__origin article__origin--none">
-                      원문 링크를 받지 못했습니다
+                      출처 없음 · 검색 결과에 근거하지 않았을 수 있습니다
                     </span>
                   ))}
 
