@@ -243,6 +243,7 @@ export async function fetchArticle({
   topic,
   focus,
   level,
+  length,
   story, // 관련 기사 목록에서 고른 특정 기사. 없으면 새로 찾습니다.
 }) {
   const levelSpec = {
@@ -261,6 +262,14 @@ export async function fetchArticle({
       "Do not simplify anything for a learner, and do not use textbook connectors " +
       "such as moreover, furthermore, or in conclusion.",
   }[level];
+
+  // 길이를 못박아 두면 원문이 아무리 길어도 그만큼만 나옵니다.
+  const lengthSpec =
+    {
+      short: "3 to 4 paragraphs, 170-210 words total.",
+      mid: "6 to 7 paragraphs, 380-450 words total.",
+      long: "9 to 11 paragraphs, 700-850 words total.",
+    }[length] || "6 to 7 paragraphs, 380-450 words total.";
 
   // 주간지에 "며칠 내"를 요구하면 해당 기사가 없어 모델이 헤맵니다.
   const recency = source.window || "the last few days";
@@ -291,7 +300,11 @@ Then write YOUR OWN English article reporting that story.
 
 Rules
 - Never copy sentences or distinctive phrases from the source. Re-report the facts in fresh wording.
-- 4 to 5 paragraphs, 170-210 words total.
+- Length: ${lengthSpec}
+- Fill that length by covering more of the story — what happened, the specific details and
+  figures, who is affected, the background, and what comes next. Do not pad, repeat yourself,
+  or reproduce the source's own sentences to reach the count. Everything must still be in
+  your own wording.
 - Reading level: ${levelSpec}
 - Factual and neutral. Only state what you actually found.
 - Quote a person directly only if you actually found that exact quote in your sources.

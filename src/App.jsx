@@ -92,6 +92,13 @@ const LEVELS = [
   { id: "hard", label: "원문 수준", hint: "C1 · 인용·관계절 등 실제 기사 문체" },
 ];
 
+// 원문 기사는 보통 800~1,500단어입니다. 짧게 고정해 두면 요약본만 나옵니다.
+const LENGTHS = [
+  { id: "short", label: "짧게", hint: "약 200단어 · 3~4문단" },
+  { id: "mid", label: "보통", hint: "약 400단어 · 6~7문단" },
+  { id: "long", label: "길게", hint: "약 800단어 · 9~11문단" },
+];
+
 const TABS = [
   ["read", "읽기"],
   ["talk", "대화"],
@@ -186,6 +193,7 @@ export default function App() {
   const [field, setField] = useState(FIELDS[0]);
   const [source, setSource] = useState(FIELDS[0].sources[0]);
   const [level, setLevel] = useState(LEVELS[1]);
+  const [length, setLength] = useState(LENGTHS[1]);
   const [focus, setFocus] = useState("");
   const [panelOpen, setPanelOpen] = useState(true);
 
@@ -241,6 +249,7 @@ export default function App() {
         topic: field.topic,
         focus: focus.trim(),
         level: level.id,
+        length: length.id,
         story,
       });
       setArticle(a);
@@ -252,7 +261,7 @@ export default function App() {
       setTuning(false);
     }
     },
-    [keys, source, field, level, focus]
+    [keys, source, field, level, length, focus]
   );
 
   async function open(kind, term, key, fetcher) {
@@ -411,6 +420,14 @@ export default function App() {
                   </Chip>
                 ))}
                 <span className="hint">{level.hint}</span>
+              </div>
+              <div className="row">
+                {LENGTHS.map((l) => (
+                  <Chip key={l.id} on={l.id === length.id} onClick={() => setLength(l)}>
+                    {l.label}
+                  </Chip>
+                ))}
+                <span className="hint">{length.hint}</span>
               </div>
 
               {/* 한글 조합 중 Enter 는 글자를 확정하는 키라, 조합 중에는 검색하지 않습니다. */}
