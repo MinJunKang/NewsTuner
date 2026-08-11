@@ -1,5 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { fetchArticle, lookupWord, lookupSentence, discuss, safeUrl } from "./api.js";
+import {
+  fetchArticle,
+  findStories,
+  lookupWord,
+  lookupSentence,
+  discuss,
+  safeUrl,
+} from "./api.js";
 
 /* ---------------- config ---------------- */
 
@@ -198,6 +205,8 @@ export default function App() {
   const [focus, setFocus] = useState("");
   const [pasteText, setPasteText] = useState("");
   const [pasteMsg, setPasteMsg] = useState("");
+  const [stories, setStories] = useState([]);
+  const [finding, setFinding] = useState(false);
   const [panelOpen, setPanelOpen] = useState(true);
 
   const [article, setArticle] = useState(() => {
@@ -332,6 +341,31 @@ export default function App() {
   }
 
   const articleUrl = safeUrl(article?.url);
+  // 원문 모드에서도 "오늘 뭘 읽지" 는 앱이 풀어줘야 합니다. 본문은 가져오지
+  // 않고 제목과 링크만 찾아옵니다.
+  async function findList() {
+    setFinding(true);
+    setError("");
+    setPasteMsg("");
+    try {
+      setStories(
+        await findStories({
+          geminiKey: keys.gemini,
+          proxy: keys.proxy,
+          proxyToken: keys.token,
+          source,
+          topic: field.topic,
+          focus: focus.trim(),
+        })
+      );
+    } catch (e) {
+      setStories([]);
+      setPasteMsg(e.message);
+    } finally {
+      setFinding(false);
+    }
+  }
+
   // 가져오기와 읽기를 한 번에 합니다. 단축어로 본문을 복사해 온 경우
   // 앱에서는 이 버튼 한 번이면 끝납니다.
   async function pasteFromClipboard() {
@@ -534,6 +568,25 @@ export default function App() {
                       </li>
                     </ul>
                   </details>
+                  <button className="btn" onClick={findList} disabled={finding || !ready}>
+                    {finding ? "찾는 중…" : ready ? "읽을 기사 찾기" : "설정에서 키를 먼저 넣으세요"}
+                  </button>
+
+                  {stories.length > 0 && (
+                    <ul className="stories">
+                      {stories.map((s, i) => (
+                        <li key={i}>
+                          <a href={s.url} target="_blank" rel="noreferrer">
+                            <span className="stories__en">{s.title}</span>
+                            {s.titleKo && <span className="stories__ko">{s.titleKo}</span>}
+                            {s.summaryKo && <span className="stories__sum">{s.summaryKo}</span>}
+                          </a>
+                          <span className="stories__date">{s.published}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
                   <textarea
                     className="paste__area"
                     value={pasteText}

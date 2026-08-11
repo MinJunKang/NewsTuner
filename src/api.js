@@ -397,6 +397,87 @@ above. Exclude the story you just reported. If you found no others, use an empty
 }
 
 /* ------------------------------------------------------------------ *
+ * 기사 목록 — 원문을 직접 읽을 때 무엇을 읽을지 고르는 용도
+ * ------------------------------------------------------------------ */
+
+const STORIES_SCHEMA = {
+  type: "object",
+  properties: {
+    stories: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          title: {
+            type: "string",
+            description: "The story's own published headline, in English. Do not rewrite it.",
+          },
+          titleKo: { type: "string", description: "KOREAN ONLY. That headline in Korean." },
+          url: {
+            type: "string",
+            description:
+              "Required. Canonical URL of the story on the publisher's own site. " +
+              "Never a search page, homepage, redirect or guessed address.",
+          },
+          published: { type: "string", description: "Publication date as YYYY-MM-DD." },
+          summaryKo: {
+            type: "string",
+            description: "KOREAN ONLY. One sentence on what the story is about.",
+          },
+        },
+        required: ["title", "titleKo", "url", "published", "summaryKo"],
+      },
+    },
+  },
+  required: ["stories"],
+};
+
+// 본문은 가져오지 않습니다. 무엇이 있는지 제목과 링크만 알려줍니다.
+export async function findStories({ geminiKey, proxy, proxyToken, source, topic, focus }) {
+  const recency = source.window || "the last few days";
+  const focusLine = focus
+    ? `\nPrefer stories about: ${focus}. If none match, list what you did find instead.\n`
+    : "";
+
+  const prompt = `Use Google Search to list real stories published in ${recency} by ${source.label} on the topic: ${topic}.
+${focusLine}
+List up to 8 stories, most relevant first. Use each story's own published headline exactly as
+it appears — do not rewrite or translate it in the "title" field. Every story needs a real
+canonical URL on the publisher's own site; drop any story you cannot link. Do not summarise
+the article body beyond one short Korean sentence saying what it is about.
+
+Reply with JSON and nothing else:
+{"stories": [{"title": "...", "titleKo": "...", "url": "...", "published": "YYYY-MM-DD", "summaryKo": "..."}]}`;
+
+  const { text } = await gemini({
+    geminiKey,
+    proxy,
+    proxyToken,
+    model: MODELS.news,
+    thinkingLevel: "low",
+    maxOutputTokens: 2500,
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    tools: [{ google_search: {} }],
+    schema: STORIES_SCHEMA,
+  });
+
+  const parsed = extractJson(text);
+  const list = (Array.isArray(parsed?.stories) ? parsed.stories : [])
+    .map((s) => ({
+      title: typeof s?.title === "string" ? s.title.trim() : "",
+      titleKo: typeof s?.titleKo === "string" ? s.titleKo.trim() : "",
+      published: typeof s?.published === "string" ? s.published.trim() : "",
+      summaryKo: typeof s?.summaryKo === "string" ? s.summaryKo.trim() : "",
+      url: safeUrl(s?.url) || "",
+    }))
+    .filter((s) => s.title && s.url)
+    .slice(0, 8);
+
+  if (!list.length) throw new Error("기사를 찾지 못했습니다. 조건을 바꿔 보세요.");
+  return list;
+}
+
+/* ------------------------------------------------------------------ *
  * 사전 · 문장 해석 · 대화
  * ------------------------------------------------------------------ */
 

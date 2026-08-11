@@ -331,6 +331,54 @@ a {
   color: var(--faint);
 }
 
+.stories {
+  list-style: none;
+  margin-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.stories li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.stories li a {
+  flex: 1;
+  min-width: 0;
+}
+
+.stories__en {
+  display: block;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ink);
+}
+
+.stories__ko {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--dim);
+}
+
+.stories__sum {
+  display: block;
+  margin-top: 3px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--faint);
+}
+
+.stories__date {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--faint);
+}
+
 .howto {
   margin-top: 10px;
   border: 1px solid var(--line);
