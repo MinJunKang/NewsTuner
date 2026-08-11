@@ -239,6 +239,17 @@ const isArticle = (a) =>
 
 /* ---------------- pieces ---------------- */
 
+// FM 대역에 맞춰 바늘 위치를 잡습니다. 매체 주파수는 88.5~105.9 사이라
+// 양쪽에 여유를 두면 바늘이 가장자리에 붙지 않습니다.
+const FREQ_MIN = 87.5;
+const FREQ_MAX = 107.5;
+const needleAt = (freq) => {
+  const f = parseFloat(freq);
+  if (!Number.isFinite(f)) return 50;
+  const pct = ((f - FREQ_MIN) / (FREQ_MAX - FREQ_MIN)) * 100;
+  return Math.min(97, Math.max(3, pct));
+};
+
 function Dial({ source, tuning }) {
   return (
     <div className={"dial" + (tuning ? " dial--tuning" : "")}>
@@ -247,7 +258,7 @@ function Dial({ source, tuning }) {
           <span key={i} className={"dial__tick" + (i % 5 === 0 ? " dial__tick--major" : "")} />
         ))}
       </div>
-      <div className="dial__needle" />
+      <div className="dial__needle" style={{ left: `${needleAt(source.freq)}%` }} />
       <div className="dial__row">
         <span className="dial__label">SHORTWAVE · EN</span>
         <span className="dial__freq">
@@ -723,7 +734,7 @@ export default function App() {
                 <div className="row__chips">
                   {field.sources.map((s) => (
                     <Chip key={s.id} on={s.id === source.id} onClick={() => setSource(s)}>
-                      {s.freq} {s.short}
+                      {s.short}
                     </Chip>
                   ))}
                   <span className="hint">{source.note}</span>
