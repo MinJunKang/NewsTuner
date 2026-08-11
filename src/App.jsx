@@ -680,7 +680,7 @@ export default function App() {
           <div className="console__head">
             <h1 className="console__title">NEWS TUNER</h1>
             <button className="link" onClick={() => setPanelOpen((v) => !v)}>
-              {panelOpen ? "접기" : "채널 바꾸기"}
+              {panelOpen ? "접기" : "다른 글 보기"}
             </button>
           </div>
 
@@ -903,7 +903,7 @@ export default function App() {
               <div className="empty">
                 <p className="empty__code">NO SIGNAL</p>
                 <p className="empty__text">
-                  채널과 주제를 고르고 주파수를 맞추면
+                  분야와 매체를 고르고 주파수를 맞추면
                   <br />
                   오늘 기사가 도착합니다.
                 </p>
