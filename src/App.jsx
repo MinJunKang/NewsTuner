@@ -332,20 +332,26 @@ export default function App() {
   }
 
   const articleUrl = safeUrl(article?.url);
+  // 가져오기와 읽기를 한 번에 합니다. 단축어로 본문을 복사해 온 경우
+  // 앱에서는 이 버튼 한 번이면 끝납니다.
   async function pasteFromClipboard() {
     setPasteMsg("");
     try {
       const t = await navigator.clipboard.readText();
-      if (t.trim()) setPasteText(t);
-      else setPasteMsg("클립보드가 비어 있습니다.");
+      if (!t.trim()) {
+        setPasteMsg("클립보드가 비어 있습니다.");
+        return;
+      }
+      setPasteText(t);
+      readPasted(t);
     } catch {
       setPasteMsg("클립보드를 읽지 못했습니다. 아래 칸에 직접 붙여넣어 주세요.");
     }
   }
 
   // 붙여넣은 글을 기사와 같은 모양으로 감싸면 단어·문장·토론 기능이 그대로 돕니다.
-  function readPasted() {
-    const blocks = pasteText
+  function readPasted(raw = pasteText) {
+    const blocks = raw
       .split(/\n\s*\n/)
       .map((b) => b.trim().replace(/\s*\n\s*/g, " "))
       .filter(Boolean);
@@ -490,8 +496,9 @@ export default function App() {
               {level.id === "paste" ? (
                 <div className="paste">
                   <p className="hint">
-                    원문 기사를 사파리에서 열고 읽기 도구를 켠 뒤 복사해서 가져오세요. 붙여넣은
-                    글은 기기에 저장되지 않습니다.
+                    사파리에서 기사를 복사한 뒤 아래 버튼을 누르면 바로 읽습니다. 매번 본문을
+                    선택하기 번거로우면 iOS 단축어로 공유 시트에서 한 번에 복사할 수 있습니다
+                    (README 참고). 붙여넣은 글은 기기에 저장되지 않습니다.
                   </p>
                   <textarea
                     className="paste__area"
