@@ -187,6 +187,14 @@ const Chip = ({ on, children, ...rest }) => (
 
 const Spinner = ({ label }) => <p className="spinner">{label}</p>;
 
+// 모델에게 마크다운을 쓰지 말라고 해도 가끔 **강조** 를 섞어 보내고, 그러면
+// 별표가 글자로 그대로 보입니다. HTML 로 해석하지 않고 React 요소로만 바꾸므로
+// 주입 위험은 없습니다.
+const renderText = (text) =>
+  String(text ?? "")
+    .split(/\*\*(.+?)\*\*/g)
+    .map((part, i) => (i % 2 ? <b key={i}>{part}</b> : part));
+
 /* ---------------- app ---------------- */
 
 export default function App() {
@@ -864,7 +872,7 @@ export default function App() {
             )}
             {chat.map((m, i) => (
               <div key={i} className={"bubble bubble--" + (m.role === "user" ? "me" : "ai")}>
-                {m.content}
+                {renderText(m.content)}
               </div>
             ))}
             {chatBusy && <Spinner label="쓰는 중…" />}
