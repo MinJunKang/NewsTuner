@@ -247,9 +247,9 @@ export async function fetchArticle({
   story, // 관련 기사 목록에서 고른 특정 기사. 없으면 새로 찾습니다.
 }) {
   const levelSpec = {
-    easy: "CEFR A2-B1. Sentences of 12 words or fewer. Common vocabulary only.",
-    mid: "CEFR B2. Natural news register, moderate sentence length.",
+    easy: "CEFR B2. Natural news register, moderate sentence length.",
     // 이 단계는 학습자용으로 눅여 쓰지 말라고 구체적으로 지시해야 실제 기사 문체가 나옵니다.
+    // 문체만 실제 기사 수준이고, 표현은 어디까지나 새로 쓴 것이어야 합니다.
     hard:
       "CEFR C1, written the way a US national newspaper actually writes. " +
       "Open with a lead sentence that compresses what happened, to whom, and when. " +

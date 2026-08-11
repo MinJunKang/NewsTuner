@@ -86,10 +86,11 @@ const FIELDS = [
   },
 ];
 
+// paste 는 생성 난이도가 아니라 "원문을 직접 붙여넣어 읽기" 모드입니다.
 const LEVELS = [
-  { id: "easy", label: "쉽게", hint: "A2–B1 · 짧은 문장" },
-  { id: "mid", label: "보통", hint: "B2 · 자연스러운 뉴스체" },
-  { id: "hard", label: "원문 수준", hint: "C1 · 인용·관계절 등 실제 기사 문체" },
+  { id: "easy", label: "쉽게", hint: "B2 · 자연스러운 뉴스체" },
+  { id: "hard", label: "원문 수준", hint: "C1 · 실제 기사 문체, 표현은 새로 씀" },
+  { id: "paste", label: "원문", hint: "직접 붙여넣어 원문 그대로 읽기" },
 ];
 
 // 원문 기사는 보통 800~1,500단어입니다. 짧게 고정해 두면 요약본만 나옵니다.
@@ -195,6 +196,8 @@ export default function App() {
   const [level, setLevel] = useState(LEVELS[1]);
   const [length, setLength] = useState(LENGTHS[1]);
   const [focus, setFocus] = useState("");
+  const [pasteText, setPasteText] = useState("");
+  const [pasteMsg, setPasteMsg] = useState("");
   const [panelOpen, setPanelOpen] = useState(true);
 
   const [article, setArticle] = useState(() => {
@@ -226,7 +229,10 @@ export default function App() {
 
   useEffect(() => save("nt-keys", keys), [keys]);
   useEffect(() => setSaveFailed(!save("nt-vocab", vocab)), [vocab]);
-  useEffect(() => article && save("nt-article", article), [article]);
+  // 붙여넣은 글은 기기에 남기지 않습니다. 앱을 닫으면 사라집니다.
+  useEffect(() => {
+    if (article && !article.pasted) save("nt-article", article);
+  }, [article]);
   useEffect(() => chatEnd.current?.scrollIntoView({ behavior: "smooth" }), [chat, chatBusy]);
 
   const ready = keys.proxy || !!keys.gemini;
@@ -326,6 +332,57 @@ export default function App() {
   }
 
   const articleUrl = safeUrl(article?.url);
+  async function pasteFromClipboard() {
+    setPasteMsg("");
+    try {
+      const t = await navigator.clipboard.readText();
+      if (t.trim()) setPasteText(t);
+      else setPasteMsg("클립보드가 비어 있습니다.");
+    } catch {
+      setPasteMsg("클립보드를 읽지 못했습니다. 아래 칸에 직접 붙여넣어 주세요.");
+    }
+  }
+
+  // 붙여넣은 글을 기사와 같은 모양으로 감싸면 단어·문장·토론 기능이 그대로 돕니다.
+  function readPasted() {
+    const blocks = pasteText
+      .split(/\n\s*\n/)
+      .map((b) => b.trim().replace(/\s*\n\s*/g, " "))
+      .filter(Boolean);
+    if (!blocks.length) {
+      setPasteMsg("읽을 내용이 없습니다.");
+      return;
+    }
+
+    // 첫 덩어리가 짧으면 제목으로 봅니다.
+    let title = "붙여넣은 글";
+    let paragraphs = blocks;
+    if (blocks.length > 1 && blocks[0].length <= 120) {
+      title = blocks[0];
+      paragraphs = blocks.slice(1);
+    }
+
+    setSheet(null);
+    setChat([]);
+    setError("");
+    setArticle({
+      pasted: true,
+      title,
+      titleKo: "",
+      outlet: "붙여넣은 글",
+      url: "",
+      published: "",
+      summaryKo: "",
+      paragraphs,
+      keywords: [],
+      related: [],
+      sources: [],
+    });
+    setPasteMsg("");
+    setPanelOpen(false);
+    setTab("read");
+  }
+
   function exportVocab() {
     const body = JSON.stringify(
       { app: "news-tuner", version: 1, exportedAt: new Date().toISOString(), vocab },
@@ -421,7 +478,7 @@ export default function App() {
                 ))}
                 <span className="hint">{level.hint}</span>
               </div>
-              <div className="row">
+              <div className="row" hidden={level.id === "paste"}>
                 {LENGTHS.map((l) => (
                   <Chip key={l.id} on={l.id === length.id} onClick={() => setLength(l)}>
                     {l.label}
@@ -430,6 +487,36 @@ export default function App() {
                 <span className="hint">{length.hint}</span>
               </div>
 
+              {level.id === "paste" ? (
+                <div className="paste">
+                  <p className="hint">
+                    원문 기사를 사파리에서 열고 읽기 도구를 켠 뒤 복사해서 가져오세요. 붙여넣은
+                    글은 기기에 저장되지 않습니다.
+                  </p>
+                  <textarea
+                    className="paste__area"
+                    value={pasteText}
+                    onChange={(e) => setPasteText(e.target.value)}
+                    placeholder="여기에 붙여넣거나, 아래 버튼으로 클립보드에서 가져오세요"
+                    rows={6}
+                  />
+                  {pasteMsg && <p className="io-msg">{pasteMsg}</p>}
+                  <div className="paste__row">
+                    <button className="paste__btn" onClick={pasteFromClipboard}>
+                      클립보드에서 가져오기
+                    </button>
+                    {pasteText && (
+                      <button className="paste__btn" onClick={() => setPasteText("")}>
+                        지우기
+                      </button>
+                    )}
+                  </div>
+                  <button className="btn" onClick={readPasted} disabled={!pasteText.trim()}>
+                    이 글 읽기
+                  </button>
+                </div>
+              ) : (
+                <>
               {/* 한글 조합 중 Enter 는 글자를 확정하는 키라, 조합 중에는 검색하지 않습니다. */}
               <input
                 className="focus"
@@ -445,6 +532,8 @@ export default function App() {
               <button className="btn" onClick={() => tuneIn()} disabled={tuning || !ready}>
                 {tuning ? "수신 중…" : ready ? "주파수 맞추기" : "설정에서 키를 먼저 넣으세요"}
               </button>
+                </>
+              )}
             </>
           )}
         </div>
@@ -475,26 +564,31 @@ export default function App() {
               <article className="article">
                 <div className="article__meta">
                   <span className="article__outlet">{article.outlet}</span>
-                  <span>·</span>
-                  <span>{article.published}</span>
+                  {article.published && (
+                    <>
+                      <span>·</span>
+                      <span>{article.published}</span>
+                    </>
+                  )}
                 </div>
                 <h2 className="article__title">{article.title}</h2>
-                <p className="article__titleko">{article.titleKo}</p>
+                {article.titleKo && <p className="article__titleko">{article.titleKo}</p>}
 
-                {articleUrl ? (
-                  <a
-                    className="article__origin"
-                    href={articleUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    원문 기사 열기 →
-                  </a>
-                ) : (
-                  <span className="article__origin article__origin--none">
-                    원문 링크를 받지 못했습니다
-                  </span>
-                )}
+                {!article.pasted &&
+                  (articleUrl ? (
+                    <a
+                      className="article__origin"
+                      href={articleUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      원문 기사 열기 →
+                    </a>
+                  ) : (
+                    <span className="article__origin article__origin--none">
+                      원문 링크를 받지 못했습니다
+                    </span>
+                  ))}
 
                 <div className="article__modes">
                   <span className="hint">탭하면</span>

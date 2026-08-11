@@ -305,6 +305,52 @@ a {
   color: var(--signal);
 }
 
+.paste {
+  margin-top: 12px;
+}
+
+.paste__area {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  background: #161f28;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 10px 11px;
+  font-size: 14px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.paste__area:focus {
+  border-color: var(--signal);
+  outline: none;
+}
+
+.paste__area::placeholder {
+  color: var(--faint);
+}
+
+.paste__row {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.paste__btn {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--dim);
+}
+
+.paste__btn:hover {
+  border-color: var(--signal);
+  color: var(--signal);
+}
+
 .related {
   margin-top: 28px;
   padding-top: 16px;
