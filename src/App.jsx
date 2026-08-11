@@ -196,11 +196,21 @@ const NO_MARKS = new Map();
 const BOILER =
   /^(share|tweet|save|print|copy link|advertisement|sponsored|subscribe|sign ?in|log ?in|menu|search|skip to|read more|related|more from|most popular|newsletter|follow|comments?|photo|image|credit|getty|copyright|©|all rights reserved|terms|privacy|cookie|home|sections?|watch|listen|live|donate|support)\b/i;
 
+// 본문 중간에 끼는 광고와 구독 권유는 완결된 문장이라 길이나 마침표로는
+// 걸러지지 않습니다. 줄 맨 앞이 아니라 어디에 있든 잡아야 합니다.
+// 기사 본문에도 나올 법한 흔한 낱말(offer, deal, free) 대신, 광고에서만
+// 쓰이는 표현을 골랐습니다. 본문이 잘려나가는 쪽이 더 나쁜 실패입니다.
+const PROMO =
+  /sign up for (our|the|a)|subscribe (to|now|today|for)|delivered to your inbox|to your inbox|newsletter|advertisement|\bsponsored\b|promoted content|partner content|click here|tap here|follow us on|download (our|the) app|get the app|free trial|\d+% off|unlimited access|support (our|independent) journalism|become a (member|subscriber)|make a (gift|donation)|all rights reserved|terms of (use|service)|privacy policy|cookie (policy|settings|preferences)|we use cookies|enable javascript|your browser (does not|doesn't) support|share this (story|article)/i;
+
 const wordsIn = (l) => l.split(/\s+/).filter(Boolean).length;
 
 // 문장처럼 생긴 줄만 본문으로 봅니다. 메뉴 항목은 짧고 마침표가 없습니다.
 const looksLikeBody = (l) =>
-  !BOILER.test(l) && wordsIn(l) >= 12 && (/[.!?]["'’)\]]?$/.test(l) || wordsIn(l) >= 25);
+  !BOILER.test(l) &&
+  !PROMO.test(l) &&
+  wordsIn(l) >= 12 &&
+  (/[.!?]["'’)\]]?$/.test(l) || wordsIn(l) >= 25);
 
 function extractBody(raw) {
   const lines = raw
@@ -250,13 +260,15 @@ function extractBody(raw) {
   // 고른 구간 안에서도, 중간에 끼어든 짧은 메뉴 줄은 걸러냅니다.
   const paragraphs = lines
     .slice(best.start, best.end + 1)
-    .filter((l, i) => flags[best.start + i] || (!BOILER.test(l) && wordsIn(l) >= 8));
+    .filter(
+      (l, i) => flags[best.start + i] || (!BOILER.test(l) && !PROMO.test(l) && wordsIn(l) >= 8)
+    );
 
   // 제목은 본문 바로 위에서 찾습니다. 너무 멀리 올라가면 메뉴를 집습니다.
   let title = "";
   for (let i = best.start - 1; i >= 0 && i >= best.start - 6; i--) {
     const l = lines[i];
-    if (!BOILER.test(l) && wordsIn(l) >= 3 && wordsIn(l) <= 20) {
+    if (!BOILER.test(l) && !PROMO.test(l) && wordsIn(l) >= 3 && wordsIn(l) <= 20) {
       title = l;
       break;
     }
