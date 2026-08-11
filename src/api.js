@@ -315,14 +315,20 @@ Report on that exact story, not a different one.
 ${focusLine}`;
 
   const prompt = `${intro}
-What counts as a story here
-- It must be a narrative news article: written by a named reporter or a wire service, and
-  published once on a fixed date.
-- Do not use an election guide, a results dashboard, a topic or tag hub, a category page, a
-  live blog, or any page that is updated continuously. Those have no fixed publication date
-  and their content changes after you read them.
-- If nothing you found meets this, set "error" to "no suitable article found" and leave the
-  other fields empty. Do not report an unsuitable page instead.
+Choosing which story to report
+- Your search will turn up pages that are not articles. Check each candidate before you
+  settle on it, discard the ones that fail, and move on to the next candidate. Do not report
+  the first thing you find, and do not give up after one failed candidate.
+- Take a candidate only if it is a narrative news article: written by a named reporter or a
+  wire service, and published once on a fixed date.
+- Discard election guides, results dashboards, topic or tag hubs, category and section
+  pages, live blogs, and any page that is updated continuously. They have no fixed
+  publication date and their content changes after you read them. Discard photo galleries,
+  video pages and podcast episode pages too — there is no article text to report.
+- Among the candidates that survive, prefer the one with the most substantial reporting
+  rather than the shortest or the most recent.
+- Only if you have worked through the candidates and none survives, set "error" to
+  "no suitable article found" and leave the other fields empty.
 
 Then write YOUR OWN English article reporting that story.
 
