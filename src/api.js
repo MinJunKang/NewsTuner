@@ -578,6 +578,79 @@ Give the meaning this word carries in that sentence, not its most common meaning
   return extractJson(text);
 }
 
+// 관용구는 단어 뜻을 아무리 합쳐도 안 나옵니다. 직역과 실제 뜻을 나란히
+// 보여주는 게 핵심이라 사전과 항목을 다르게 잡습니다.
+const PHRASE_SCHEMA = {
+  type: "object",
+  properties: {
+    phrase: { type: "string", description: "The English expression, as it appears." },
+    base: {
+      type: "string",
+      description:
+        "The dictionary form of the expression in English, with a placeholder where it takes " +
+        "an object (e.g. 'take (something) for granted'). Same as phrase if there is none.",
+    },
+    kind: {
+      type: "string",
+      description:
+        "KOREAN ONLY. What kind of expression it is: 관용구, 구동사, 연어, 비유 표현, " +
+        "일반 표현 중 하나로 답하세요.",
+    },
+    ko: { type: "string", description: "KOREAN ONLY. What it actually means here." },
+    literal: {
+      type: "string",
+      description:
+        "KOREAN ONLY. What the words say if taken literally, so the learner can see the gap. " +
+        "If it is not figurative, say 직역과 뜻이 거의 같습니다.",
+    },
+    inContext: {
+      type: "string",
+      description: "KOREAN ONLY. One sentence on what it is doing in this sentence.",
+    },
+    example: { type: "string", description: "A different example sentence, in English." },
+    exampleKo: { type: "string", description: "KOREAN ONLY. Translation of that example." },
+    related: {
+      type: "array",
+      items: { type: "string" },
+      description: "Two or three English expressions with a similar meaning.",
+    },
+  },
+  required: [
+    "phrase", "base", "kind", "ko", "literal", "inContext", "example", "exampleKo", "related",
+  ],
+};
+
+export async function lookupPhrase({ geminiKey, proxy, proxyToken, phrase, sentence }) {
+  const { text } = await gemini({
+    geminiKey,
+    proxy,
+    proxyToken,
+    model: MODELS.lookup,
+    thinkingLevel: "minimal",
+    maxOutputTokens: 1400,
+    schema: PHRASE_SCHEMA,
+    system:
+      "You explain English expressions to an advanced Korean learner. Every explanation must " +
+      "be written in Korean and must never come back in English. Only phrase, base, example " +
+      "and related hold English.",
+    contents: [
+      {
+        role: "user",
+        parts: [
+          {
+            text: `Expression: "${phrase}"
+Sentence it appears in: "${sentence}"
+
+Explain what this expression means here. If the learner could not work it out by adding up
+the individual word meanings, that gap is the most important thing to explain.`,
+          },
+        ],
+      },
+    ],
+  });
+  return extractJson(text);
+}
+
 export async function lookupSentence({ geminiKey, proxy, proxyToken, sentence }) {
   const { text } = await gemini({
     geminiKey,

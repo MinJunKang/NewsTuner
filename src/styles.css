@@ -666,6 +666,13 @@ a {
   border-bottom: 1px solid var(--paper-line);
 }
 
+/* 표현 모드에서 첫 단어를 눌렀을 때, 어디서 시작했는지 보여줍니다. */
+.w--anchor {
+  background: rgba(61, 219, 192, 0.22);
+  border-radius: 2px;
+  box-shadow: 0 0 0 2px rgba(61, 219, 192, 0.22);
+}
+
 .article__modes .hint {
   color: var(--paper-dim);
 }

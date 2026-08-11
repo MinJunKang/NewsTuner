@@ -3,6 +3,7 @@ import {
   fetchArticle,
   findStories,
   lookupWord,
+  lookupPhrase,
   lookupSentence,
   discuss,
   safeUrl,
@@ -230,6 +231,8 @@ export default function App() {
   });
   const [mode, setMode] = useState("word");
   const [sheet, setSheet] = useState(null);
+  // 표현 모드에서 처음 누른 단어. 두 번째 단어를 누르면 그 구간이 표현이 됩니다.
+  const [anchor, setAnchor] = useState(null);
 
   // 같은 단어를 다시 누르는 일이 잦습니다. 그때마다 API 를 부르면 하루 한도가
   // 금방 닳으므로, 이번 세션 동안 본 결과는 기억해 둡니다.
@@ -318,6 +321,38 @@ export default function App() {
         proxy: keys.proxy,
         proxyToken: keys.token,
         word,
+        sentence,
+      })
+    );
+
+  // 단어 모드는 한 번 탭이면 끝이고, 표현 모드는 시작과 끝 두 번을 받습니다.
+  function tapWord({ pi, si, ti, toks, w, s }) {
+    if (mode !== "phrase") {
+      openWord(w, s);
+      return;
+    }
+    // 다른 문장을 누르면 이전 선택은 버리고 거기서 다시 시작합니다.
+    if (!anchor || anchor.pi !== pi || anchor.si !== si) {
+      setAnchor({ pi, si, ti });
+      return;
+    }
+    const [a, b] = ti < anchor.ti ? [ti, anchor.ti] : [anchor.ti, ti];
+    const phrase = toks
+      .slice(a, b + 1)
+      .join("")
+      .trim()
+      .replace(/^[^A-Za-z'’-]+|[^A-Za-z'’-]+$/g, "");
+    setAnchor(null);
+    if (phrase) openPhrase(phrase, s);
+  }
+
+  const openPhrase = (phrase, sentence) =>
+    open("phrase", phrase, `p:${phrase}|${sentence}`, () =>
+      lookupPhrase({
+        geminiKey: keys.gemini,
+        proxy: keys.proxy,
+        proxyToken: keys.token,
+        phrase,
         sentence,
       })
     );
@@ -756,13 +791,41 @@ export default function App() {
 
                 <div className="article__modes">
                   <span className="hint">탭하면</span>
-                  <Chip on={mode === "word"} onClick={() => setMode("word")}>
+                  <Chip
+                    on={mode === "word"}
+                    onClick={() => {
+                      setMode("word");
+                      setAnchor(null);
+                    }}
+                  >
                     단어 뜻
                   </Chip>
-                  <Chip on={mode === "sentence"} onClick={() => setMode("sentence")}>
+                  <Chip
+                    on={mode === "phrase"}
+                    onClick={() => {
+                      setMode("phrase");
+                      setAnchor(null);
+                    }}
+                  >
+                    표현·관용구
+                  </Chip>
+                  <Chip
+                    on={mode === "sentence"}
+                    onClick={() => {
+                      setMode("sentence");
+                      setAnchor(null);
+                    }}
+                  >
                     문장 해석
                   </Chip>
                 </div>
+                {mode === "phrase" && (
+                  <p className="hint">
+                    {anchor
+                      ? "끝 단어를 누르세요. 한 단어만 볼 거라면 같은 단어를 다시 누르세요."
+                      : "표현의 첫 단어와 끝 단어를 차례로 누르세요."}
+                  </p>
+                )}
 
                 <div className="body">
                   {article.paragraphs.map((p, pi) => (
@@ -775,13 +838,24 @@ export default function App() {
                               {sent}
                             </span>
                           );
+                        const toks = sent.split(/(\s+)/);
                         return (
                           <span key={si}>
-                            {sent.split(/(\s+)/).map((tok, ti) => {
+                            {toks.map((tok, ti) => {
                               const w = cleanWord(tok);
                               if (!w) return <span key={ti}>{tok}</span>;
+                              const marked =
+                                mode === "phrase" &&
+                                anchor &&
+                                anchor.pi === pi &&
+                                anchor.si === si &&
+                                anchor.ti === ti;
                               return (
-                                <span key={ti} className="w" onClick={() => openWord(w, s)}>
+                                <span
+                                  key={ti}
+                                  className={"w" + (marked ? " w--anchor" : "")}
+                                  onClick={() => tapWord({ pi, si, ti, toks, w, s })}
+                                >
                                   {tok}
                                 </span>
                               );
@@ -991,7 +1065,9 @@ export default function App() {
       {sheet && (
         <section className="sheet">
           <div className="sheet__head">
-            <p className="sheet__term">{sheet.kind === "word" ? sheet.term : "문장 해석"}</p>
+            <p className="sheet__term">
+              {sheet.kind === "sentence" ? "문장 해석" : sheet.term}
+            </p>
             <button className="sheet__close" onClick={() => setSheet(null)}>
               닫기 ✕
             </button>
@@ -999,6 +1075,38 @@ export default function App() {
 
           {sheet.loading && <Spinner label="찾는 중…" />}
           {sheet.error && <p className="error" style={{ padding: "8px 0" }}>{sheet.error}</p>}
+
+          {sheet.kind === "phrase" && sheet.data && (
+            <>
+              <p className="k-mono">
+                {sheet.data.kind}
+                {sheet.data.base && sheet.data.base !== sheet.term
+                  ? ` · ${sheet.data.base}`
+                  : ""}
+              </p>
+              <p className="k-ko">{sheet.data.ko}</p>
+              <p className="k-ctx">직역 — {sheet.data.literal}</p>
+              <p className="k-ctx">{sheet.data.inContext}</p>
+              <p className="k-ex">{sheet.data.example}</p>
+              <p className="k-en">{sheet.data.exampleKo}</p>
+              {sheet.data.related?.length > 0 && (
+                <p className="k-mono">{sheet.data.related.join(" · ")}</p>
+              )}
+              <button
+                className="save"
+                disabled={saved(sheet.data.phrase || sheet.term)}
+                onClick={() =>
+                  addWord({
+                    word: sheet.data.phrase || sheet.term,
+                    ko: sheet.data.ko,
+                    example: sheet.data.example,
+                  })
+                }
+              >
+                {saved(sheet.data.phrase || sheet.term) ? "단어장에 있음" : "단어장에 넣기"}
+              </button>
+            </>
+          )}
 
           {sheet.kind === "word" && sheet.data && (
             <>
