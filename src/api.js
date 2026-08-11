@@ -43,6 +43,21 @@ export const safeUrl = (u) => {
   }
 };
 
+// 모델은 실제로 열어본 적 없는 주소를 그럴듯하게 지어낼 수 있습니다. 브라우저는
+// CORS 때문에 살아있는 주소인지 확인할 수 없으므로, 최소한 발행사 도메인인지는
+// 검사합니다. 남의 도메인이면 지어낸 것으로 봅니다.
+export const onDomain = (url, domain) => {
+  const u = safeUrl(url);
+  if (!u) return null;
+  if (!domain) return u;
+  try {
+    const host = new URL(u).hostname.replace(/^www\./, "");
+    return host === domain || host.endsWith(`.${domain}`) ? u : null;
+  } catch {
+    return null;
+  }
+};
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const findDetail = (details, type) =>
@@ -191,12 +206,6 @@ const ARTICLE_SCHEMA = {
     title: { type: "string", description: "The English headline you wrote." },
     titleKo: { type: "string", description: "KOREAN ONLY. The headline in Korean." },
     outlet: { type: "string", description: "The publication the story came from." },
-    url: {
-      type: "string",
-      description:
-        "Required. Canonical URL of the original story on the publisher's own site. " +
-        "Never blank, never a search page, homepage, redirect or guessed address.",
-    },
     published: { type: "string", description: "Publication date as YYYY-MM-DD." },
     summaryKo: { type: "string", description: "KOREAN ONLY. One sentence summarising the story." },
     paragraphs: {
@@ -229,8 +238,10 @@ const ARTICLE_SCHEMA = {
       },
     },
   },
+  // url 을 필수로 두면 실제 주소를 모를 때도 반드시 채워야 해서 지어냅니다.
+  // 빈 값을 허용하는 편이 틀린 주소보다 낫습니다.
   required: [
-    "title", "titleKo", "outlet", "url", "published",
+    "title", "titleKo", "outlet", "published",
     "summaryKo", "paragraphs", "keywords", "related",
   ],
 };
@@ -332,17 +343,16 @@ Rules
 - If your sources show genuine disagreement, report both positions and say who holds each.
   Do not manufacture a disagreement your sources do not show, and do not dress a fringe
   claim up as an equal side.
-- "url" is required and must never be blank. Give the canonical link to the original story
-  on the publisher's own site, exactly as it appeared in your search results. Do not give a
-  search page, a homepage, a redirect, or a guessed address. If you cannot produce a real
-  link for a story, report a different story that you can link instead.
+- Every "url" in "related" must be an address you actually saw in your search results, on
+  ${source.label}'s own site. Never assemble, guess or complete an address, even if the
+  pattern looks obvious — a link that 404s is worse than no link. Drop the entry rather
+  than guess its address.
 
 Reply with JSON and nothing else. No markdown fences, no preamble.
 {
  "title": "the English headline you wrote",
  "titleKo": "한국어 제목",
  "outlet": "${source.label}",
- "url": "canonical URL of the original story (required)",
  "published": "YYYY-MM-DD",
  "summaryKo": "한 문장 한국어 요약",
  "paragraphs": ["...", "...", "..."],
@@ -395,25 +405,26 @@ above. Exclude the story you just reported. If you found no others, use an empty
     (k) => k && typeof k.word === "string"
   );
 
-  // 주소가 검사를 통과하지 못하면 링크로 쓰지 않습니다. 모델이 검색 페이지나
-  // 지어낸 주소를 넣는 경우가 있어, 화면에 내보내기 전에 여기서 거릅니다.
-  article.url = safeUrl(article.url) || "";
+  // 그라운딩이 실제로 열어본 주소입니다. 모델이 적어 낸 것과 달리 존재가 보장됩니다.
+  const chunks = cand?.groundingMetadata?.groundingChunks || [];
+  article.sources = chunks
+    .map((c) => c.web && { title: c.web.title, uri: safeUrl(c.web.uri) })
+    .filter((c) => c && c.uri)
+    .slice(0, 4);
+
+  // 모델이 적어 낸 주소는 쓰지 않습니다. 지어낸 주소는 도메인은 맞고 슬러그만
+  // 가짜인 경우가 많아 도메인 검사로도 걸러지지 않고, 눌러야 404 임을 압니다.
+  // 그라운딩 주소는 구글이 실제로 열어본 것이라 존재가 보장됩니다.
+  article.url = article.sources[0]?.uri || "";
 
   article.related = (Array.isArray(article.related) ? article.related : [])
     .map((r) => ({
       title: typeof r?.title === "string" ? r.title.trim() : "",
       titleKo: typeof r?.titleKo === "string" ? r.titleKo.trim() : "",
-      url: safeUrl(r?.url) || "",
+      url: onDomain(r?.url, source.domain) || "",
     }))
     .filter((r) => r.title && r.url && r.url !== article.url)
     .slice(0, 5);
-
-  // 그라운딩 출처가 있으면 원문 링크로 함께 보관
-  const chunks = cand?.groundingMetadata?.groundingChunks || [];
-  article.sources = chunks
-    .map((c) => c.web && { title: c.web.title, uri: c.web.uri })
-    .filter(Boolean)
-    .slice(0, 4);
 
   return article;
 }
@@ -488,7 +499,7 @@ Reply with JSON and nothing else:
       title: typeof s?.title === "string" ? s.title.trim() : "",
       published: typeof s?.published === "string" ? s.published.trim() : "",
       summaryKo: typeof s?.summaryKo === "string" ? s.summaryKo.trim() : "",
-      url: safeUrl(s?.url) || "",
+      url: onDomain(s?.url, source.domain) || "",
     }))
     .filter((s) => s.title && s.url)
     .slice(0, 5);
