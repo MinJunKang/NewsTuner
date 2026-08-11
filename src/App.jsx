@@ -51,6 +51,19 @@ const cleanWord = (t) => t.replace(/^[^A-Za-z'’-]+|[^A-Za-z'’-]+$/g, "");
 const isArticle = (a) =>
   !!a && Array.isArray(a.paragraphs) && a.paragraphs.length > 0;
 
+// 링크 주소는 모델이 만든 값입니다. 검사 없이 href 에 넣으면 javascript: 스킴이
+// 클릭 한 번에 실행되고, 그 코드는 localStorage 의 API 키를 읽어 갈 수 있습니다.
+// 절대 주소이면서 http/https 인 것만 통과시킵니다. (React 는 막아주지 않습니다.)
+const safeUrl = (u) => {
+  if (typeof u !== "string") return null;
+  try {
+    const { protocol, href } = new URL(u);
+    return protocol === "http:" || protocol === "https:" ? href : null;
+  } catch {
+    return null;
+  }
+};
+
 /* ---------------- pieces ---------------- */
 
 function Dial({ source, tuning }) {
@@ -204,6 +217,7 @@ export default function App() {
     }
   }
 
+  const articleUrl = safeUrl(article?.url);
   const saved = (w) => vocab.some((v) => v.word === w);
   const addWord = (e) => !saved(e.word) && setVocab([{ ...e, at: Date.now() }, ...vocab]);
 
@@ -345,16 +359,20 @@ export default function App() {
                 )}
 
                 <div className="sources">
-                  {article.url && (
-                    <a href={article.url} target="_blank" rel="noreferrer">
+                  {articleUrl && (
+                    <a href={articleUrl} target="_blank" rel="noreferrer">
                       원문 기사 열기 →
                     </a>
                   )}
-                  {article.sources?.map((s, i) => (
-                    <a key={i} href={s.uri} target="_blank" rel="noreferrer">
-                      {s.title}
-                    </a>
-                  ))}
+                  {article.sources?.map((s, i) => {
+                    const href = safeUrl(s?.uri);
+                    if (!href) return null;
+                    return (
+                      <a key={i} href={href} target="_blank" rel="noreferrer">
+                        {s.title}
+                      </a>
+                    );
+                  })}
                 </div>
               </article>
             )}
