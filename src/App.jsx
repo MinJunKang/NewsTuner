@@ -309,6 +309,7 @@ export default function App() {
     return k.proxy || k.gemini ? "read" : "set";
   });
   const [mode, setMode] = useState("word");
+  const [dark, setDark] = useState(() => load("nt-dark", false));
   const [sheet, setSheet] = useState(null);
   // 표현 모드에서 처음 누른 단어. 두 번째 단어를 누르면 그 구간이 표현이 됩니다.
   const [anchor, setAnchor] = useState(null);
@@ -337,6 +338,9 @@ export default function App() {
   useEffect(() => {
     setSaveFailed(!save("nt-vocab", vocab));
   }, [vocab]);
+  useEffect(() => {
+    save("nt-dark", dark);
+  }, [dark]);
   // 붙여넣은 글은 기기에 남기지 않습니다. 앱을 닫으면 사라집니다.
   useEffect(() => {
     if (article && !article.pasted) save("nt-article", article);
@@ -895,7 +899,7 @@ export default function App() {
             )}
 
             {article && !tuning && (
-              <article className="article">
+              <article className={"article" + (dark ? " article--dark" : "")}>
                 <div className="article__meta">
                   <span className="article__outlet">{article.outlet}</span>
                   {article.published && (
@@ -947,6 +951,13 @@ export default function App() {
                   >
                     문장 해석
                   </Chip>
+                  <button
+                    className="theme"
+                    onClick={() => setDark((v) => !v)}
+                    aria-label={dark ? "밝은 배경으로" : "어두운 배경으로"}
+                  >
+                    {dark ? "☀" : "☾"}
+                  </button>
                 </div>
                 {mode === "phrase" && (
                   <p className="hint">

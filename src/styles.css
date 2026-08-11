@@ -630,6 +630,16 @@ a {
   min-height: 100%;
 }
 
+/* 기사 영역은 paper 계열 변수만 쓰므로, 그 네 개만 갈아끼우면 전체가 바뀝니다.
+   순수한 검정 대신 살짝 푸른 회색을 쓰는 것은 흰 글자와의 대비가 너무 세면
+   긴 글을 읽을 때 눈이 빨리 피로해지기 때문입니다. */
+.article--dark {
+  --paper: #10151a;
+  --paper-ink: #dde2e6;
+  --paper-dim: #8794a0;
+  --paper-line: #29343e;
+}
+
 .article__meta {
   display: flex;
   gap: 8px;
@@ -684,6 +694,16 @@ a {
   background: rgba(61, 219, 192, 0.22);
   border-radius: 2px;
   box-shadow: 0 0 0 2px rgba(61, 219, 192, 0.22);
+}
+
+.theme {
+  margin-left: auto;
+  padding: 3px 8px;
+  border: 1px solid var(--paper-line);
+  border-radius: 999px;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--paper-dim);
 }
 
 .article__modes .hint {
