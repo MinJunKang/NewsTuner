@@ -3,13 +3,88 @@ import { fetchArticle, lookupWord, lookupSentence, discuss } from "./api.js";
 
 /* ---------------- config ---------------- */
 
-const SOURCES = [
-  { id: "voa-le", label: "VOA Learning English", short: "VOA LE", freq: "88.5" },
-  { id: "voa", label: "VOA News", short: "VOA", freq: "91.3" },
-  { id: "npr", label: "NPR", short: "NPR", freq: "94.7" },
+// 분야마다 그 분야를 잘 쓰는 매체를 짝지어 둡니다. 매체와 주제를 따로 고르게
+// 하면 "미술 잡지에서 경제 기사" 같은 빈 조합이 생깁니다.
+// window 는 매체의 발행 주기입니다. 주간지에 "며칠 내"를 요구하면 기사가 없습니다.
+const FIELDS = [
+  {
+    id: "news",
+    label: "News",
+    topic: "the day's main US or international news story",
+    sources: [
+      { id: "npr", label: "NPR", short: "NPR", freq: "88.5",
+        window: "the last few days", note: "방송 원고라 말하는 리듬에 가까움" },
+      { id: "ap", label: "AP News", short: "AP", freq: "89.7",
+        window: "the last few days", note: "짧고 명확한 통신사 문체" },
+    ],
+  },
+  {
+    id: "world",
+    label: "World",
+    topic: "international affairs and foreign policy",
+    sources: [
+      { id: "pbs", label: "PBS NewsHour", short: "PBS", freq: "90.9",
+        window: "the last few days", note: "깊이 있으면서 문장이 정갈함" },
+      { id: "csm", label: "The Christian Science Monitor", short: "CSM", freq: "91.5",
+        window: "the last week", note: "국제 보도가 강하고 산문이 좋음" },
+    ],
+  },
+  {
+    id: "tech",
+    label: "Tech · Science",
+    topic: "science, mathematics or technology research",
+    sources: [
+      { id: "quanta", label: "Quanta Magazine", short: "QUANTA", freq: "93.1",
+        window: "the last two weeks", note: "어려운 개념을 명료한 영어로 푸는 교본" },
+      { id: "mittr", label: "MIT Technology Review", short: "MIT TR", freq: "94.7",
+        window: "the last week", note: "AI·기술 정책, 연구자 어휘" },
+    ],
+  },
+  {
+    id: "health",
+    label: "Health",
+    topic: "health, medicine or biotechnology",
+    sources: [
+      { id: "stat", label: "STAT News", short: "STAT", freq: "96.3",
+        window: "the last few days", note: "바이오·의학 저널리즘" },
+      { id: "shots", label: "NPR Shots", short: "SHOTS", freq: "97.1",
+        window: "the last week", note: "일반 독자용 건강 보도" },
+    ],
+  },
+  {
+    id: "economy",
+    label: "Economy",
+    topic: "the economy, markets or business",
+    sources: [
+      { id: "pmoney", label: "NPR Planet Money", short: "PMONEY", freq: "98.7",
+        window: "the last two weeks", note: "경제 개념을 이야기로 풀어냄, 구어체" },
+      { id: "mktpl", label: "Marketplace", short: "MKTPL", freq: "99.5",
+        window: "the last week", note: "비즈니스 뉴스를 쉽게" },
+    ],
+  },
+  {
+    id: "culture",
+    label: "Culture",
+    topic: "culture, society, media or sports",
+    sources: [
+      { id: "atlantic", label: "The Atlantic", short: "ATLNTIC", freq: "101.1",
+        window: "the last week", note: "에세이형 장문, 어휘 수준 높음" },
+      { id: "ringer", label: "The Ringer", short: "RINGER", freq: "102.3",
+        window: "the last week", note: "스포츠·팝컬처, 관용표현이 살아 있음" },
+    ],
+  },
+  {
+    id: "art",
+    label: "Art",
+    topic: "art, design, museums or architecture",
+    sources: [
+      { id: "smith", label: "Smithsonian Magazine", short: "SMITH", freq: "104.5",
+        window: "the last two weeks", note: "읽기 편하고 소재가 넓음" },
+      { id: "hyper", label: "Hyperallergic", short: "HYPER", freq: "105.9",
+        window: "the last week", note: "현대미술 비평, 관점이 뚜렷함" },
+    ],
+  },
 ];
-
-const TOPICS = ["Top story", "World", "Science", "Technology", "Health", "Business", "Culture"];
 
 const LEVELS = [
   { id: "easy", label: "쉽게", hint: "A2–B1 · 짧은 문장" },
@@ -105,8 +180,8 @@ export default function App() {
   }));
   const [vocab, setVocab] = useState(() => load("nt-vocab", []));
 
-  const [source, setSource] = useState(SOURCES[0]);
-  const [topic, setTopic] = useState(TOPICS[0]);
+  const [field, setField] = useState(FIELDS[0]);
+  const [source, setSource] = useState(FIELDS[0].sources[0]);
   const [level, setLevel] = useState(LEVELS[1]);
   const [panelOpen, setPanelOpen] = useState(true);
 
@@ -153,7 +228,7 @@ export default function App() {
         proxy: keys.proxy,
         proxyToken: keys.token,
         source,
-        topic,
+        topic: field.topic,
         level: level.id,
       });
       setArticle(a);
@@ -164,7 +239,7 @@ export default function App() {
     } finally {
       setTuning(false);
     }
-  }, [keys, source, topic, level]);
+  }, [keys, source, field, level]);
 
   async function open(kind, term, key, fetcher) {
     const cached = lookupCache.current.get(key);
@@ -249,18 +324,26 @@ export default function App() {
           {panelOpen && (
             <>
               <div className="row">
-                {SOURCES.map((s) => (
-                  <Chip key={s.id} on={s.id === source.id} onClick={() => setSource(s)}>
-                    {s.freq} {s.short}
+                {FIELDS.map((f) => (
+                  <Chip
+                    key={f.id}
+                    on={f.id === field.id}
+                    onClick={() => {
+                      setField(f);
+                      setSource(f.sources[0]);
+                    }}
+                  >
+                    {f.label}
                   </Chip>
                 ))}
               </div>
               <div className="row">
-                {TOPICS.map((t) => (
-                  <Chip key={t} on={t === topic} onClick={() => setTopic(t)}>
-                    {t}
+                {field.sources.map((s) => (
+                  <Chip key={s.id} on={s.id === source.id} onClick={() => setSource(s)}>
+                    {s.freq} {s.short}
                   </Chip>
                 ))}
+                <span className="hint">{source.note}</span>
               </div>
               <div className="row">
                 {LEVELS.map((l) => (

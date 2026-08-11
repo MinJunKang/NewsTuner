@@ -1,7 +1,7 @@
 {
   "name": "News Tuner",
   "short_name": "Tuner",
-  "description": "VOA·NPR 뉴스를 읽고, 단어를 눌러 뜻을 보고, 기사에 대해 대화하는 개인 리더",
+  "description": "영어권 기사를 읽고, 단어를 눌러 뜻을 보고, 기사에 대해 대화하는 개인 리더",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

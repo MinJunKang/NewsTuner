@@ -182,7 +182,10 @@ export async function fetchArticle({ geminiKey, proxy, proxyToken, source, topic
       "such as moreover, furthermore, or in conclusion.",
   }[level];
 
-  const prompt = `Use Google Search to find a real news story published in the last few days by ${source.label} on the topic: ${topic}.
+  // 주간지에 "며칠 내"를 요구하면 해당 기사가 없어 모델이 헤맵니다.
+  const window = source.window || "the last few days";
+
+  const prompt = `Use Google Search to find a real story published in ${window} by ${source.label} on the topic: ${topic}.
 
 Then write YOUR OWN English article reporting that story.
 
