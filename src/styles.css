@@ -212,14 +212,16 @@ a {
   align-items: flex-start;
 }
 
-/* 각 줄이 무엇을 고르는 것인지 왼쪽에 못박아 둡니다. */
+/* 각 줄이 무엇을 고르는 것인지 왼쪽에 못박아 둡니다.
+   칩과 같은 높이로 읽히도록 폭을 "난이도" 세 글자에 맞춥니다. */
 .row__label {
   flex: none;
-  width: 34px;
-  padding-top: 6px;
-  font-family: var(--mono);
-  font-size: 10px;
-  color: var(--faint);
+  width: 48px;
+  padding-top: 5px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
 }
 
 .row__chips {
@@ -254,8 +256,9 @@ a {
 
 .hint {
   font-family: var(--mono);
-  font-size: 10px;
-  color: var(--faint);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--dim);
 }
 
 .focus {
