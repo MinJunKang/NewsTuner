@@ -250,19 +250,34 @@ Exactly 5 keywords, chosen for a Korean learner of English.`;
  * 사전 · 문장 해석 · 대화
  * ------------------------------------------------------------------ */
 
+// 설명은 한국어로 나와야 공부가 됩니다. 시스템 프롬프트만으로는 가끔 영어로
+// 새기 때문에, 필드마다 어느 언어인지 스키마에 직접 박아 둡니다.
 const WORD_SCHEMA = {
   type: "object",
   properties: {
-    word: { type: "string" },
-    base: { type: "string" },
-    pos: { type: "string" },
-    ipa: { type: "string" },
-    ko: { type: "string" },
-    en: { type: "string" },
-    inContext: { type: "string" },
-    example: { type: "string" },
-    exampleKo: { type: "string" },
-    related: { type: "array", items: { type: "string" } },
+    word: { type: "string", description: "The English word being looked up." },
+    base: { type: "string", description: "Dictionary base form, in English." },
+    pos: { type: "string", description: "Part of speech, in KOREAN (예: 명사, 타동사, 형용사)." },
+    ipa: { type: "string", description: "IPA pronunciation between slashes." },
+    ko: {
+      type: "string",
+      description: "KOREAN ONLY. The meaning this word carries in the given sentence. Must not be English.",
+    },
+    en: { type: "string", description: "A short definition, in English." },
+    inContext: {
+      type: "string",
+      description: "KOREAN ONLY. One sentence on why it takes that meaning here. Must not be English.",
+    },
+    example: { type: "string", description: "A different example sentence, in English." },
+    exampleKo: {
+      type: "string",
+      description: "KOREAN ONLY. Translation of the example sentence. Must not be English.",
+    },
+    related: {
+      type: "array",
+      items: { type: "string" },
+      description: "Three English synonyms or collocations. English words, not Korean.",
+    },
   },
   required: ["word", "base", "pos", "ipa", "ko", "en", "inContext", "example", "exampleKo", "related"],
 };
@@ -270,15 +285,28 @@ const WORD_SCHEMA = {
 const SENTENCE_SCHEMA = {
   type: "object",
   properties: {
-    translation: { type: "string" },
-    literal: { type: "string" },
-    structure: { type: "string" },
-    notes: { type: "array", items: { type: "string" } },
+    translation: { type: "string", description: "KOREAN ONLY. A natural Korean translation." },
+    literal: {
+      type: "string",
+      description: "KOREAN ONLY. A literal Korean translation that exposes the structure.",
+    },
+    structure: {
+      type: "string",
+      description: "KOREAN ONLY. One line on the sentence structure (예: 주절 + 분사구문).",
+    },
+    notes: {
+      type: "array",
+      items: { type: "string" },
+      description: "KOREAN ONLY. Two or three grammar or usage points, each a Korean sentence.",
+    },
     expressions: {
       type: "array",
       items: {
         type: "object",
-        properties: { phrase: { type: "string" }, meaning: { type: "string" } },
+        properties: {
+          phrase: { type: "string", description: "The English phrase, quoted from the sentence." },
+          meaning: { type: "string", description: "KOREAN ONLY. What that phrase means." },
+        },
         required: ["phrase", "meaning"],
       },
     },
@@ -297,7 +325,10 @@ export async function lookupWord({ geminiKey, proxy, proxyToken, word, sentence 
     schema: WORD_SCHEMA,
     system:
       "You are an English-Korean dictionary for an advanced Korean learner. " +
-      "ko, inContext, exampleKo, and related are written in Korean; en and example in English.",
+      "Every explanation must be written in Korean: pos, ko, inContext and exampleKo are " +
+      "Korean and must never come back in English. Only word, base, ipa, en, example and " +
+      "related hold English. The learner is studying English, so explaining in English " +
+      "defeats the purpose.",
     contents: [
       {
         role: "user",
@@ -328,8 +359,10 @@ export async function lookupSentence({ geminiKey, proxy, proxyToken, sentence })
     maxOutputTokens: 1400,
     schema: SENTENCE_SCHEMA,
     system:
-      "You explain English sentences to an advanced Korean learner. Answer in Korean, " +
-      "except when quoting the English itself.",
+      "You explain English sentences to an advanced Korean learner. Write every field in " +
+      "Korean. The only English allowed is expressions[].phrase, which quotes the sentence " +
+      "itself. Never explain in English — the learner is studying English, so a Korean " +
+      "explanation is the whole point.",
     contents: [
       {
         role: "user",
