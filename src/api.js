@@ -24,6 +24,19 @@ export function extractJson(text) {
   return JSON.parse(stripped.slice(start, end + 1));
 }
 
+// 링크 주소는 모델이 만든 값입니다. 검사 없이 href 에 넣으면 javascript: 스킴이
+// 클릭 한 번에 실행되고, 그 코드는 localStorage 의 API 키를 읽어 갈 수 있습니다.
+// 절대 주소이면서 http/https 인 것만 통과시킵니다. (React 는 막아주지 않습니다.)
+export const safeUrl = (u) => {
+  if (typeof u !== "string") return null;
+  try {
+    const { protocol, href } = new URL(u);
+    return protocol === "http:" || protocol === "https:" ? href : null;
+  } catch {
+    return null;
+  }
+};
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const findDetail = (details, type) =>
@@ -172,6 +185,7 @@ export async function fetchArticle({
   topic,
   focus,
   level,
+  story, // 관련 기사 목록에서 고른 특정 기사. 없으면 새로 찾습니다.
 }) {
   const levelSpec = {
     easy: "CEFR A2-B1. Sentences of 12 words or fewer. Common vocabulary only.",
@@ -204,8 +218,17 @@ not stretch or invent a story to fit the request.
 `
     : "";
 
-  const prompt = `Use Google Search to find a real story published in ${recency} by ${source.label} on the topic: ${topic}.
-${focusLine}
+  // 관련 기사에서 고른 경우에는 새로 찾지 말고 그 기사를 그대로 다룹니다.
+  const intro = story
+    ? `Use Google Search to open this specific story published by ${source.label}:
+Title: ${story.title}
+URL: ${story.url}
+Report on that exact story, not a different one.
+`
+    : `Use Google Search to find a real story published in ${recency} by ${source.label} on the topic: ${topic}.
+${focusLine}`;
+
+  const prompt = `${intro}
 Then write YOUR OWN English article reporting that story.
 
 Rules
@@ -216,19 +239,29 @@ Rules
 - Quote a person directly only if you actually found that exact quote in your sources.
   Never invent a quote or put words in a named person's mouth. When unsure, paraphrase
   with attribution instead.
+- "url" is required and must never be blank. Give the canonical link to the original story
+  on the publisher's own site, exactly as it appeared in your search results. Do not give a
+  search page, a homepage, a redirect, or a guessed address. If you cannot produce a real
+  link for a story, report a different story that you can link instead.
 
 Reply with JSON and nothing else. No markdown fences, no preamble.
 {
  "title": "the English headline you wrote",
  "titleKo": "한국어 제목",
  "outlet": "${source.label}",
- "url": "URL of the original story you found",
+ "url": "canonical URL of the original story (required)",
  "published": "YYYY-MM-DD",
  "summaryKo": "한 문장 한국어 요약",
  "paragraphs": ["...", "...", "..."],
- "keywords": [{"word": "...", "ko": "...", "note": "기사 속 쓰임 한 줄"}]
+ "keywords": [{"word": "...", "ko": "...", "note": "기사 속 쓰임 한 줄"}],
+ "related": [{"title": "original headline", "titleKo": "한국어 제목", "url": "canonical URL"}]
 }
-Exactly 5 keywords, chosen for a Korean learner of English.`;
+Exactly 5 keywords, chosen for a Korean learner of English.
+
+"related" holds up to 5 OTHER real stories you actually found from ${source.label} while
+searching, ordered by how closely they match what was asked for. Use each story's own
+headline, not one you wrote. Every entry needs a real canonical URL under the same rule as
+above. Exclude the story you just reported. If you found no others, use an empty array.`;
 
   // 검색 그라운딩과 스키마를 함께 쓰는 건 아직 미리보기 단계라, 기사 쪽은
   // 프롬프트로 형식을 지시하고 아래에서 모양을 검사합니다.
@@ -257,6 +290,19 @@ Exactly 5 keywords, chosen for a Korean learner of English.`;
   article.keywords = (Array.isArray(article.keywords) ? article.keywords : []).filter(
     (k) => k && typeof k.word === "string"
   );
+
+  // 주소가 검사를 통과하지 못하면 링크로 쓰지 않습니다. 모델이 검색 페이지나
+  // 지어낸 주소를 넣는 경우가 있어, 화면에 내보내기 전에 여기서 거릅니다.
+  article.url = safeUrl(article.url) || "";
+
+  article.related = (Array.isArray(article.related) ? article.related : [])
+    .map((r) => ({
+      title: typeof r?.title === "string" ? r.title.trim() : "",
+      titleKo: typeof r?.titleKo === "string" ? r.titleKo.trim() : "",
+      url: safeUrl(r?.url) || "",
+    }))
+    .filter((r) => r.title && r.url && r.url !== article.url)
+    .slice(0, 5);
 
   // 그라운딩 출처가 있으면 원문 링크로 함께 보관
   const chunks = cand?.groundingMetadata?.groundingChunks || [];

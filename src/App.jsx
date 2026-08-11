@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { fetchArticle, lookupWord, lookupSentence, discuss } from "./api.js";
+import { fetchArticle, lookupWord, lookupSentence, discuss, safeUrl } from "./api.js";
 
 /* ---------------- config ---------------- */
 
@@ -126,19 +126,6 @@ const cleanWord = (t) => t.replace(/^[^A-Za-z'’-]+|[^A-Za-z'’-]+$/g, "");
 const isArticle = (a) =>
   !!a && Array.isArray(a.paragraphs) && a.paragraphs.length > 0;
 
-// 링크 주소는 모델이 만든 값입니다. 검사 없이 href 에 넣으면 javascript: 스킴이
-// 클릭 한 번에 실행되고, 그 코드는 localStorage 의 API 키를 읽어 갈 수 있습니다.
-// 절대 주소이면서 http/https 인 것만 통과시킵니다. (React 는 막아주지 않습니다.)
-const safeUrl = (u) => {
-  if (typeof u !== "string") return null;
-  try {
-    const { protocol, href } = new URL(u);
-    return protocol === "http:" || protocol === "https:" ? href : null;
-  } catch {
-    return null;
-  }
-};
-
 /* ---------------- pieces ---------------- */
 
 function Dial({ source, tuning }) {
@@ -218,7 +205,9 @@ export default function App() {
 
   /* ---- actions ---- */
 
-  const tuneIn = useCallback(async () => {
+  // story 를 주면 새로 찾지 않고 그 기사를 다룹니다. 관련 기사 목록에서 씁니다.
+  const tuneIn = useCallback(
+    async (story) => {
     setTuning(true);
     setError("");
     setSheet(null);
@@ -232,6 +221,7 @@ export default function App() {
         topic: field.topic,
         focus: focus.trim(),
         level: level.id,
+        story,
       });
       setArticle(a);
       setPanelOpen(false);
@@ -241,7 +231,9 @@ export default function App() {
     } finally {
       setTuning(false);
     }
-  }, [keys, source, field, level, focus]);
+    },
+    [keys, source, field, level, focus]
+  );
 
   async function open(kind, term, key, fetcher) {
     const cached = lookupCache.current.get(key);
@@ -368,7 +360,7 @@ export default function App() {
                 }}
                 placeholder="찾고 싶은 내용 (선택) — 예: 반도체 수출 규제, AI 저작권 소송"
               />
-              <button className="btn" onClick={tuneIn} disabled={tuning || !ready}>
+              <button className="btn" onClick={() => tuneIn()} disabled={tuning || !ready}>
                 {tuning ? "수신 중…" : ready ? "주파수 맞추기" : "설정에서 키를 먼저 넣으세요"}
               </button>
             </>
@@ -466,11 +458,32 @@ export default function App() {
                   </div>
                 )}
 
+                {article.related?.length > 0 && (
+                  <div className="related">
+                    <p className="keys__label">관련 기사</p>
+                    <ul>
+                      {article.related.map((r, i) => (
+                        <li key={i}>
+                          <button onClick={() => tuneIn(r)} disabled={tuning}>
+                            <span className="related__en">{r.title}</span>
+                            {r.titleKo && <span className="related__ko">{r.titleKo}</span>}
+                          </button>
+                          <a href={r.url} target="_blank" rel="noreferrer" className="related__src">
+                            원문
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
                 <div className="sources">
-                  {articleUrl && (
+                  {articleUrl ? (
                     <a href={articleUrl} target="_blank" rel="noreferrer">
                       원문 기사 열기 →
                     </a>
+                  ) : (
+                    <span className="hint">원문 링크를 받지 못했습니다</span>
                   )}
                   {article.sources?.map((s, i) => {
                     const href = safeUrl(s?.uri);
