@@ -384,7 +384,10 @@ export default function App() {
   }
 
   // 붙여넣은 글을 기사와 같은 모양으로 감싸면 단어·문장·토론 기능이 그대로 돕니다.
-  function readPasted(raw = pasteText) {
+  // onClick={readPasted} 로 연결하면 첫 인자에 클릭 이벤트가 들어옵니다.
+  // 문자열이 아니면 무시하고 입력칸 내용을 씁니다.
+  function readPasted(arg) {
+    const raw = typeof arg === "string" ? arg : pasteText;
     const blocks = raw
       .split(/\n\s*\n/)
       .map((b) => b.trim().replace(/\s*\n\s*/g, " "))
@@ -604,7 +607,11 @@ export default function App() {
                       </button>
                     )}
                   </div>
-                  <button className="btn" onClick={readPasted} disabled={!pasteText.trim()}>
+                  <button
+                    className="btn"
+                    onClick={() => readPasted()}
+                    disabled={!pasteText.trim()}
+                  >
                     이 글 읽기
                   </button>
                 </div>
