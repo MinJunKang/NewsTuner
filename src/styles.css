@@ -997,9 +997,27 @@ a {
   gap: 10px;
 }
 
+/* 단어 하나만 들어오던 자리에 구문이 들어옵니다. 길어져도 삭제 버튼을
+   밀어내지 않도록 폭을 잡고, 줄바꿈을 허용합니다. */
 .vocab__word {
+  flex: 1;
+  min-width: 0;
   font-family: var(--serif);
-  font-size: 19px;
+  font-size: 18px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.vocab__kind {
+  margin-left: 8px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--signal);
+  white-space: nowrap;
+}
+
+.vocab__del {
+  flex: none;
 }
 
 .vocab__del {

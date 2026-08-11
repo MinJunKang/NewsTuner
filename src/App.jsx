@@ -146,6 +146,7 @@ const cleanEntry = (e) => {
     word,
     ko: str(e.ko, 300),
     example: str(e.example, 500),
+    kind: str(e.kind, 20),
     at: Number.isFinite(e.at) ? e.at : Date.now(),
   };
 };
@@ -502,6 +503,9 @@ export default function App() {
   }
 
   const articleUrl = safeUrl(article?.url);
+  // 단어장에는 본문에 나온 형태가 아니라 사전형으로 넣습니다. 복습할 때
+  // "took many by surprise" 보다 "take (someone) by surprise" 가 쓸모 있습니다.
+  const phraseHead = sheet?.data?.base || sheet?.data?.phrase || sheet?.term || "";
   // 원문 모드에서도 "오늘 뭘 읽지" 는 앱이 풀어줘야 합니다. 본문은 가져오지
   // 않고 제목과 링크만 찾아옵니다.
   async function findList() {
@@ -1124,7 +1128,10 @@ export default function App() {
               {vocab.map((v) => (
                 <li key={v.word}>
                   <div className="vocab__top">
-                    <span className="vocab__word">{v.word}</span>
+                    <span className="vocab__word">
+                      {v.word}
+                      {v.kind && <span className="vocab__kind">{v.kind}</span>}
+                    </span>
                     <button
                       className="vocab__del"
                       onClick={() => setVocab(vocab.filter((x) => x.word !== v.word))}
@@ -1228,18 +1235,21 @@ export default function App() {
               {sheet.data.related?.length > 0 && (
                 <p className="k-mono">{sheet.data.related.join(" · ")}</p>
               )}
+              {/* 본문에 나온 형태가 아니라 사전형으로 저장합니다. 나중에 복습할 때
+                  "took many by surprise" 보다 "take (someone) by surprise" 가 쓸모 있습니다. */}
               <button
                 className="save"
-                disabled={saved(sheet.data.phrase || sheet.term)}
+                disabled={saved(phraseHead)}
                 onClick={() =>
                   addWord({
-                    word: sheet.data.phrase || sheet.term,
+                    word: phraseHead,
                     ko: sheet.data.ko,
                     example: sheet.data.example,
+                    kind: sheet.data.kind,
                   })
                 }
               >
-                {saved(sheet.data.phrase || sheet.term) ? "단어장에 있음" : "단어장에 넣기"}
+                {saved(phraseHead) ? "단어장에 있음" : "단어장에 넣기"}
               </button>
             </>
           )}
