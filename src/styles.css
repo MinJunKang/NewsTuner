@@ -242,9 +242,14 @@ a {
   transition: 0.15s;
 }
 
-.chip:hover {
+.chip:hover:not(:disabled) {
   border-color: var(--faint);
   color: var(--ink);
+}
+
+.chip:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .chip--on {

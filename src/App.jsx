@@ -575,6 +575,9 @@ export default function App() {
     }
   }
 
+  // 요청이 나간 뒤에는 설정을 바꿔도 그 요청에 반영되지 않습니다. 잠가 두지
+  // 않으면 고른 것과 다른 기사가 온 것처럼 보입니다.
+  const busy = tuning || finding;
   const articleUrl = safeUrl(article?.url);
   // 단어장에는 본문에 나온 형태가 아니라 사전형으로 넣습니다. 복습할 때
   // "took many by surprise" 보다 "take (someone) by surprise" 가 쓸모 있습니다.
@@ -776,6 +779,7 @@ export default function App() {
                     <Chip
                       key={f.id}
                       on={f.id === field.id}
+                      disabled={busy}
                       onClick={() => {
                         setField(f);
                         setSource(f.sources[0]);
@@ -790,7 +794,12 @@ export default function App() {
                 <span className="row__label">매체</span>
                 <div className="row__chips">
                   {field.sources.map((s) => (
-                    <Chip key={s.id} on={s.id === source.id} onClick={() => setSource(s)}>
+                    <Chip
+                      key={s.id}
+                      on={s.id === source.id}
+                      disabled={busy}
+                      onClick={() => setSource(s)}
+                    >
                       {s.short}
                     </Chip>
                   ))}
@@ -801,7 +810,12 @@ export default function App() {
                 <span className="row__label">난이도</span>
                 <div className="row__chips">
                   {LEVELS.map((l) => (
-                    <Chip key={l.id} on={l.id === level.id} onClick={() => setLevel(l)}>
+                    <Chip
+                      key={l.id}
+                      on={l.id === level.id}
+                      disabled={busy}
+                      onClick={() => setLevel(l)}
+                    >
                       {l.label}
                     </Chip>
                   ))}
@@ -812,7 +826,12 @@ export default function App() {
                 <span className="row__label">길이</span>
                 <div className="row__chips">
                   {LENGTHS.map((l) => (
-                    <Chip key={l.id} on={l.id === length.id} onClick={() => setLength(l)}>
+                    <Chip
+                      key={l.id}
+                      on={l.id === length.id}
+                      disabled={busy}
+                      onClick={() => setLength(l)}
+                    >
                       {l.label}
                     </Chip>
                   ))}
@@ -928,6 +947,7 @@ export default function App() {
               <input
                 className="focus"
                 value={focus}
+                disabled={busy}
                 maxLength={200}
                 onChange={(e) => setFocus(e.target.value)}
                 onKeyDown={(e) => {
