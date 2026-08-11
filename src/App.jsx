@@ -112,7 +112,7 @@ const LENGTHS = [
 
 const TABS = [
   ["read", "읽기"],
-  ["talk", "대화"],
+  ["talk", "묻기"],
   ["vocab", "단어장"],
   ["set", "설정"],
 ];
@@ -1146,7 +1146,7 @@ export default function App() {
           <div className="chat">
             {!article && (
               <div className="empty">
-                <p className="empty__text">기사를 먼저 받아오면 그 내용으로 대화할 수 있습니다.</p>
+                <p className="empty__text">기사를 먼저 받아오면 그 내용에 대해 물어볼 수 있습니다.</p>
               </div>
             )}
             {article && chat.length === 0 && (

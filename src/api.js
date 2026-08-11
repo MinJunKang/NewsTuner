@@ -300,6 +300,9 @@ Then write YOUR OWN English article reporting that story.
 
 Rules
 - Never copy sentences or distinctive phrases from the source. Re-report the facts in fresh wording.
+- Restructure freely. Do not follow the source's paragraph or sentence order, and do not
+  rebuild its sentences with words swapped out. Decide for yourself what to lead with and how
+  to arrange what you found.
 - Length: ${lengthSpec}. Use paragraphs of three to five sentences.
 - Every paragraph must carry something no earlier paragraph carried. Before writing each one,
   ask what it adds. If it would make a point you already made, in different words, do not
