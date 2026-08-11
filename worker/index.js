@@ -18,6 +18,8 @@ const cors = {
   "Access-Control-Allow-Origin": ALLOW_ORIGIN,
   "Access-Control-Allow-Headers": "Content-Type, X-App-Token",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
+  // 매 요청마다 프리플라이트가 한 번 더 나가지 않게 합니다.
+  "Access-Control-Max-Age": "86400",
 };
 
 export default {

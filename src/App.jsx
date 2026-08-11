@@ -47,6 +47,10 @@ const save = (k, v) => {
 const splitSentences = (p) => p.match(/[^.!?]+[.!?]+["'’)\]]*\s*|[^.!?]+$/g) || [p];
 const cleanWord = (t) => t.replace(/^[^A-Za-z'’-]+|[^A-Za-z'’-]+$/g, "");
 
+// 화면이 paragraphs 를 그대로 그리므로, 모양이 깨진 기사는 아예 들이지 않습니다.
+const isArticle = (a) =>
+  !!a && Array.isArray(a.paragraphs) && a.paragraphs.length > 0;
+
 /* ---------------- pieces ---------------- */
 
 function Dial({ source, tuning }) {
@@ -80,9 +84,13 @@ const Spinner = ({ label }) => <p className="spinner">{label}</p>;
 /* ---------------- app ---------------- */
 
 export default function App() {
-  const [keys, setKeys] = useState(() =>
-    load("nt-keys", { gemini: "", claude: "", proxy: "" })
-  );
+  const [keys, setKeys] = useState(() => ({
+    gemini: "",
+    claude: "",
+    proxy: "",
+    token: "",
+    ...load("nt-keys", {}),
+  }));
   const [vocab, setVocab] = useState(() => load("nt-vocab", []));
 
   const [source, setSource] = useState(SOURCES[0]);
@@ -90,11 +98,17 @@ export default function App() {
   const [level, setLevel] = useState(LEVELS[1]);
   const [panelOpen, setPanelOpen] = useState(true);
 
-  const [article, setArticle] = useState(() => load("nt-article", null));
+  const [article, setArticle] = useState(() => {
+    const a = load("nt-article", null);
+    return isArticle(a) ? a : null;
+  });
   const [tuning, setTuning] = useState(false);
   const [error, setError] = useState("");
 
-  const [tab, setTab] = useState(() => (load("nt-keys", {}).claude ? "read" : "set"));
+  const [tab, setTab] = useState(() => {
+    const k = load("nt-keys", {});
+    return k.proxy || (k.gemini && k.claude) ? "read" : "set";
+  });
   const [mode, setMode] = useState("word");
   const [sheet, setSheet] = useState(null);
 
@@ -121,6 +135,7 @@ export default function App() {
       const a = await fetchArticle({
         geminiKey: keys.gemini,
         proxy: keys.proxy,
+        proxyToken: keys.token,
         source,
         topic,
         level: level.id,
@@ -141,6 +156,7 @@ export default function App() {
       const data = await lookupWord({
         claudeKey: keys.claude,
         proxy: keys.proxy,
+        proxyToken: keys.token,
         word,
         sentence,
       });
@@ -156,6 +172,7 @@ export default function App() {
       const data = await lookupSentence({
         claudeKey: keys.claude,
         proxy: keys.proxy,
+        proxyToken: keys.token,
         sentence,
       });
       setSheet({ kind: "sentence", term: sentence, data });
@@ -175,12 +192,14 @@ export default function App() {
       const reply = await discuss({
         claudeKey: keys.claude,
         proxy: keys.proxy,
+        proxyToken: keys.token,
         article,
-        messages: next,
+        // 화면에 남은 오류 안내는 모델이 본 적 없는 말이라 대화 기록에서 뺍니다.
+        messages: next.filter((m) => !m.error).map(({ role, content }) => ({ role, content })),
       });
       setChat([...next, { role: "assistant", content: reply }]);
     } catch (e) {
-      setChat([...next, { role: "assistant", content: e.message }]);
+      setChat([...next, { role: "assistant", content: e.message, error: true }]);
     } finally {
       setChatBusy(false);
     }
@@ -448,6 +467,24 @@ export default function App() {
               </small>
             </div>
 
+            {keys.proxy && (
+              <div className="field">
+                <label htmlFor="pt">프록시 토큰 · 선택</label>
+                <input
+                  id="pt"
+                  type="password"
+                  autoComplete="off"
+                  value={keys.token}
+                  onChange={(e) => setKeys({ ...keys, token: e.target.value })}
+                  placeholder="워커의 SHARED_TOKEN"
+                />
+                <small>
+                  워커에 SHARED_TOKEN 을 넣었다면 같은 값을 여기에도 넣어야 합니다. 넣지 않으면
+                  워커가 모든 요청을 401로 막습니다.
+                </small>
+              </div>
+            )}
+
             {ready && <p className="ok">준비됐습니다. 읽기 탭에서 주파수를 맞추세요.</p>}
           </div>
         )}
@@ -519,10 +556,14 @@ export default function App() {
       {/* ---------- composer ---------- */}
       {tab === "talk" && article && (
         <div className="composer">
+          {/* 한글 입력 중 Enter 는 글자를 확정하는 키라, 조합 중에는 보내지 않습니다. */}
           <input
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && send()}
+            onKeyDown={(e) => {
+              if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
+              send();
+            }}
             placeholder="기사에 대해 물어보기"
           />
           <button onClick={send} disabled={chatBusy}>

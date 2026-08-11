@@ -104,3 +104,6 @@ npx wrangler secret put SHARED_TOKEN --name news-tuner-proxy
 
 배포된 주소를 앱 설정의 "프록시 주소"에 넣고, `worker/index.js` 상단의 `ALLOW_ORIGIN`을
 `https://<아이디>.github.io` 로 바꿔 주세요.
+
+`SHARED_TOKEN`을 넣었다면 **같은 값을 앱 설정의 "프록시 토큰"에도 넣어야 합니다.**
+프록시 주소를 채우면 토큰 칸이 나타납니다. 값이 다르면 워커가 모든 요청을 401로 막습니다.

@@ -37,7 +37,14 @@ function fail(res, body) {
  * Gemini — 뉴스 수집
  * ------------------------------------------------------------------ */
 
-export async function fetchArticle({ geminiKey, proxy, source, topic, level }) {
+// 프록시를 쓸 때는 워커의 SHARED_TOKEN 과 맞춰 보냅니다.
+function proxyHeaders(proxyToken) {
+  const headers = { "Content-Type": "application/json" };
+  if (proxyToken) headers["X-App-Token"] = proxyToken;
+  return headers;
+}
+
+export async function fetchArticle({ geminiKey, proxy, proxyToken, source, topic, level }) {
   const levelSpec = {
     easy: "CEFR A2-B1. Sentences of 12 words or fewer. Common vocabulary only.",
     mid: "CEFR B2. Natural news register, moderate sentence length.",
@@ -73,7 +80,7 @@ Exactly 5 keywords, chosen for a Korean learner of English.`;
 
   const res = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: proxy ? proxyHeaders(proxyToken) : { "Content-Type": "application/json" },
     body: JSON.stringify({
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       tools: [{ google_search: {} }],
@@ -98,6 +105,18 @@ Exactly 5 keywords, chosen for a Korean learner of English.`;
 
   const article = extractJson(text);
 
+  // 화면은 paragraphs 를 그대로 렌더링하므로, 여기서 모양을 보장하지 않으면
+  // 모델이 형식을 어겼을 때 렌더링 도중 터져 빈 화면이 됩니다.
+  article.paragraphs = (Array.isArray(article.paragraphs) ? article.paragraphs : [])
+    .filter((p) => typeof p === "string" && p.trim())
+    .map((p) => p.trim());
+  if (article.paragraphs.length === 0)
+    throw new Error("기사 형식이 올바르지 않습니다. 다시 시도해 보세요.");
+
+  article.keywords = (Array.isArray(article.keywords) ? article.keywords : []).filter(
+    (k) => k && typeof k.word === "string"
+  );
+
   // 그라운딩 출처가 있으면 원문 링크로 함께 보관
   const chunks = cand?.groundingMetadata?.groundingChunks || [];
   article.sources = chunks
@@ -112,9 +131,18 @@ Exactly 5 keywords, chosen for a Korean learner of English.`;
  * Claude — 사전 · 문장 해석 · 대화
  * ------------------------------------------------------------------ */
 
-async function claude({ claudeKey, proxy, model, system, messages, maxTokens = 900 }) {
+async function claude({
+  claudeKey,
+  proxy,
+  proxyToken,
+  model,
+  system,
+  messages,
+  maxTokens = 900,
+  thinking,
+}) {
   const url = proxy ? `${proxy.replace(/\/$/, "")}/claude` : CLAUDE_BASE;
-  const headers = { "Content-Type": "application/json" };
+  const headers = proxy ? proxyHeaders(proxyToken) : { "Content-Type": "application/json" };
   if (!proxy) {
     headers["x-api-key"] = claudeKey;
     headers["anthropic-version"] = "2023-06-01";
@@ -122,10 +150,13 @@ async function claude({ claudeKey, proxy, model, system, messages, maxTokens = 9
     headers["anthropic-dangerous-direct-browser-access"] = "true";
   }
 
+  const body = { model, max_tokens: maxTokens, system, messages };
+  if (thinking) body.thinking = thinking;
+
   const res = await fetch(url, {
     method: "POST",
     headers,
-    body: JSON.stringify({ model, max_tokens: maxTokens, system, messages }),
+    body: JSON.stringify(body),
   });
 
   let data;
@@ -135,6 +166,7 @@ async function claude({ claudeKey, proxy, model, system, messages, maxTokens = 9
     data = null;
   }
   if (!res.ok) fail(res, data);
+  if (!data) throw new Error("응답을 읽지 못했습니다. 잠시 후 다시 시도하세요.");
 
   return (data.content || [])
     .filter((b) => b.type === "text")
@@ -143,10 +175,11 @@ async function claude({ claudeKey, proxy, model, system, messages, maxTokens = 9
     .trim();
 }
 
-export async function lookupWord({ claudeKey, proxy, word, sentence }) {
+export async function lookupWord({ claudeKey, proxy, proxyToken, word, sentence }) {
   const text = await claude({
     claudeKey,
     proxy,
+    proxyToken,
     model: MODELS.lookup,
     maxTokens: 600,
     system:
@@ -175,10 +208,11 @@ Sentence it appears in: "${sentence}"
   return extractJson(text);
 }
 
-export async function lookupSentence({ claudeKey, proxy, sentence }) {
+export async function lookupSentence({ claudeKey, proxy, proxyToken, sentence }) {
   const text = await claude({
     claudeKey,
     proxy,
+    proxyToken,
     model: MODELS.lookup,
     maxTokens: 700,
     system:
@@ -201,13 +235,18 @@ export async function lookupSentence({ claudeKey, proxy, sentence }) {
   return extractJson(text);
 }
 
-export async function discuss({ claudeKey, proxy, article, messages }) {
-  const body = article ? `${article.title}\n\n${article.paragraphs.join("\n\n")}` : "";
+export async function discuss({ claudeKey, proxy, proxyToken, article, messages }) {
+  const paragraphs = Array.isArray(article?.paragraphs) ? article.paragraphs : [];
+  const body = paragraphs.length ? `${article.title}\n\n${paragraphs.join("\n\n")}` : "";
   return claude({
     claudeKey,
     proxy,
+    proxyToken,
     model: MODELS.chat,
-    maxTokens: 700,
+    maxTokens: 1024,
+    // Sonnet 5 는 thinking 이 기본으로 켜져 있고, max_tokens 는 생각과 답을 합쳐서
+    // 제한합니다. 끄지 않으면 짧은 대화 답변이 생각에 밀려 잘립니다.
+    thinking: { type: "disabled" },
     system:
       "You discuss a news article with a Korean learner of English. " +
       "Answer in whichever language the learner used. Keep replies under 120 words. " +
