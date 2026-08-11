@@ -168,7 +168,18 @@ export async function fetchArticle({ geminiKey, proxy, proxyToken, source, topic
   const levelSpec = {
     easy: "CEFR A2-B1. Sentences of 12 words or fewer. Common vocabulary only.",
     mid: "CEFR B2. Natural news register, moderate sentence length.",
-    hard: "CEFR C1. Keep the register and vocabulary of professional US news writing.",
+    // 이 단계는 학습자용으로 눅여 쓰지 말라고 구체적으로 지시해야 실제 기사 문체가 나옵니다.
+    hard:
+      "CEFR C1, written the way a US national newspaper actually writes. " +
+      "Open with a lead sentence that compresses what happened, to whom, and when. " +
+      "Vary sentence length: long sentences carrying relative clauses, appositives and " +
+      "subordinate clauses, broken up by short ones for emphasis. " +
+      "Attribute claims the way reporters do (officials said, according to the filing). " +
+      "Use the field's own terminology without pausing to explain it, and choose precise " +
+      "specific nouns over general ones. " +
+      "Include one paragraph of background explaining why this matters now. " +
+      "Do not simplify anything for a learner, and do not use textbook connectors " +
+      "such as moreover, furthermore, or in conclusion.",
   }[level];
 
   const prompt = `Use Google Search to find a real news story published in the last few days by ${source.label} on the topic: ${topic}.
@@ -180,6 +191,9 @@ Rules
 - 4 to 5 paragraphs, 170-210 words total.
 - Reading level: ${levelSpec}
 - Factual and neutral. Only state what you actually found.
+- Quote a person directly only if you actually found that exact quote in your sources.
+  Never invent a quote or put words in a named person's mouth. When unsure, paraphrase
+  with attribution instead.
 
 Reply with JSON and nothing else. No markdown fences, no preamble.
 {
@@ -201,6 +215,9 @@ Exactly 5 keywords, chosen for a Korean learner of English.`;
     proxy,
     proxyToken,
     model: MODELS.news,
+    // 기본값은 medium 입니다. 생각 토큰은 출력 단가로 과금되고 이 호출이 가장
+    // 비싸므로 low 로 낮춥니다. minimal 까지 내리면 검색 결과 종합이 부실해집니다.
+    thinkingLevel: "low",
     contents: [{ role: "user", parts: [{ text: prompt }] }],
     tools: [{ google_search: {} }],
   });

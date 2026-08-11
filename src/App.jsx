@@ -14,7 +14,7 @@ const TOPICS = ["Top story", "World", "Science", "Technology", "Health", "Busine
 const LEVELS = [
   { id: "easy", label: "쉽게", hint: "A2–B1 · 짧은 문장" },
   { id: "mid", label: "보통", hint: "B2 · 자연스러운 뉴스체" },
-  { id: "hard", label: "원문 수준", hint: "C1 · 원문 어휘 유지" },
+  { id: "hard", label: "원문 수준", hint: "C1 · 인용·관계절 등 실제 기사 문체" },
 ];
 
 const TABS = [
