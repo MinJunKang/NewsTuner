@@ -266,10 +266,10 @@ export async function fetchArticle({
   // 길이를 못박아 두면 원문이 아무리 길어도 그만큼만 나옵니다.
   const lengthSpec =
     {
-      short: "3 to 4 paragraphs, 170-210 words total.",
-      mid: "6 to 7 paragraphs, 380-450 words total.",
-      long: "9 to 11 paragraphs, 700-850 words total.",
-    }[length] || "6 to 7 paragraphs, 380-450 words total.";
+      short: "5 to 6 paragraphs, 380-450 words total.",
+      mid: "9 to 11 paragraphs, 750-900 words total.",
+      long: "16 to 20 paragraphs, 1400-1700 words total.",
+    }[length] || "9 to 11 paragraphs, 750-900 words total.";
 
   // 주간지에 "며칠 내"를 요구하면 해당 기사가 없어 모델이 헤맵니다.
   const recency = source.window || "the last few days";
@@ -305,6 +305,9 @@ Rules
   figures, who is affected, the background, and what comes next. Do not pad, repeat yourself,
   or reproduce the source's own sentences to reach the count. Everything must still be in
   your own wording.
+- The word count is a target, not a quota. If what you actually found does not support that
+  much material, write a shorter article instead. Never invent detail, speculate, or restate
+  the same point in new words to reach the number.
 - Reading level: ${levelSpec}
 - Factual and neutral. Only state what you actually found.
 - Quote a person directly only if you actually found that exact quote in your sources.
