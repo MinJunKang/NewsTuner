@@ -24,19 +24,59 @@ export function extractJson(text) {
   return JSON.parse(stripped.slice(start, end + 1));
 }
 
-function fail(res, body) {
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const findDetail = (details, type) =>
+  (details || []).find((d) => String(d?.["@type"] || "").includes(type));
+
+// 429 는 "분당 한도"와 "하루 한도"와 "검색 그라운딩 한도"가 전부 같은 코드로 옵니다.
+// 무엇에 걸렸는지 알려주지 않으면 사용자가 할 수 있는 일이 없습니다.
+function apiError(res, body) {
   const err = body?.error;
   const detail = err?.message || body?.message || "";
-  // Gemini 는 키가 틀려도 401/403 이 아니라 400 을 돌려줍니다.
+  const details = err?.details || [];
+
+  const violation = findDetail(details, "QuotaFailure")?.violations?.[0];
+  const quotaId = violation?.quotaId || "";
+  const raw = findDetail(details, "RetryInfo")?.retryDelay || "";
+  const secs = /^([\d.]+)s$/.exec(raw);
+  const retryMs = secs ? Math.ceil(parseFloat(secs[1]) * 1000) : 0;
+
   const badKey =
     res.status === 401 ||
     res.status === 403 ||
-    (err?.details || []).some((d) => d?.reason === "API_KEY_INVALID") ||
+    details.some((d) => d?.reason === "API_KEY_INVALID") ||
     /API key not valid/i.test(detail);
 
-  if (badKey) throw new Error("API 키가 거부되었습니다. 설정에서 키를 확인하세요.");
-  if (res.status === 429) throw new Error("요청 한도에 걸렸습니다. 잠시 후 다시 시도하세요.");
-  throw new Error(`요청 실패 (${res.status}) ${detail}`.trim());
+  let message;
+  if (badKey) {
+    message = "API 키가 거부되었습니다. 설정에서 키를 확인하세요.";
+  } else if (res.status === 429) {
+    const haystack = `${quotaId} ${detail}`;
+    if (/search|grounding/i.test(haystack)) {
+      message =
+        "뉴스 검색(그라운딩) 한도에 걸렸습니다. " +
+        "무료 티어에서는 검색 그라운딩을 쓸 수 없어, AI Studio에서 결제를 연결해야 합니다.";
+    } else if (/perday|daily/i.test(quotaId)) {
+      const cap = violation?.quotaValue ? ` (하루 ${violation.quotaValue}회)` : "";
+      message =
+        `오늘 쓸 수 있는 양을 다 썼습니다${cap}. ` +
+        "한도는 태평양 시간 자정, 한국 시간으로 대략 오후 4~5시에 초기화됩니다.";
+    } else {
+      const wait = retryMs ? `${Math.ceil(retryMs / 1000)}초` : "잠시";
+      message = `짧은 시간에 너무 많이 불렀습니다. ${wait} 후 다시 시도하세요.`;
+    }
+    // 어떤 한도였는지 남겨야 나중에 원인을 짚을 수 있습니다.
+    if (quotaId) message += ` [${quotaId}]`;
+  } else {
+    message = `요청 실패 (${res.status}) ${detail}`.trim();
+  }
+
+  const e = new Error(message);
+  e.status = res.status;
+  e.quotaId = quotaId;
+  e.retryMs = retryMs;
+  return e;
 }
 
 /* ------------------------------------------------------------------ *
@@ -77,15 +117,31 @@ async function gemini({
   if (system) body.systemInstruction = { parts: [{ text: system }] };
   if (tools) body.tools = tools;
 
-  const res = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
+  const payload = JSON.stringify(body);
+  const send = async () => {
+    const res = await fetch(url, { method: "POST", headers, body: payload });
+    let data;
+    try {
+      data = await res.json();
+    } catch {
+      data = null;
+    }
+    return { res, data };
+  };
 
-  let data;
-  try {
-    data = await res.json();
-  } catch {
-    data = null;
+  let { res, data } = await send();
+
+  // 분당 한도는 몇 초만 기다리면 풀립니다. 하루 한도는 기다려도 소용없으니
+  // 그대로 알립니다. 사용자가 버튼을 다시 누르게 하면 한도만 더 깎입니다.
+  if (res.status === 429) {
+    const e = apiError(res, data);
+    if (e.retryMs > 0 && e.retryMs <= 15000 && !/perday|daily/i.test(e.quotaId)) {
+      await sleep(e.retryMs + 250);
+      ({ res, data } = await send());
+    }
   }
-  if (!res.ok) fail(res, data);
+
+  if (!res.ok) throw apiError(res, data);
   if (!data) throw new Error("응답을 읽지 못했습니다. 잠시 후 다시 시도하세요.");
 
   const cand = data.candidates?.[0];

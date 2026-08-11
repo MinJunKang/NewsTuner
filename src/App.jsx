@@ -124,6 +124,10 @@ export default function App() {
   const [mode, setMode] = useState("word");
   const [sheet, setSheet] = useState(null);
 
+  // 같은 단어를 다시 누르는 일이 잦습니다. 그때마다 API 를 부르면 하루 한도가
+  // 금방 닳으므로, 이번 세션 동안 본 결과는 기억해 둡니다.
+  const lookupCache = useRef(new Map());
+
   const [chat, setChat] = useState([]);
   const [draft, setDraft] = useState("");
   const [chatBusy, setChatBusy] = useState(false);
@@ -162,36 +166,42 @@ export default function App() {
     }
   }, [keys, source, topic, level]);
 
-  async function openWord(word, sentence) {
-    setSheet({ kind: "word", term: word, loading: true });
+  async function open(kind, term, key, fetcher) {
+    const cached = lookupCache.current.get(key);
+    if (cached) {
+      setSheet({ kind, term, data: cached });
+      return;
+    }
+    setSheet({ kind, term, loading: true });
     try {
-      const data = await lookupWord({
+      const data = await fetcher();
+      lookupCache.current.set(key, data);
+      setSheet({ kind, term, data });
+    } catch (e) {
+      setSheet({ kind, term, error: e.message });
+    }
+  }
+
+  const openWord = (word, sentence) =>
+    open("word", word, `w:${word}|${sentence}`, () =>
+      lookupWord({
         geminiKey: keys.gemini,
         proxy: keys.proxy,
         proxyToken: keys.token,
         word,
         sentence,
-      });
-      setSheet({ kind: "word", term: word, data });
-    } catch (e) {
-      setSheet({ kind: "word", term: word, error: e.message });
-    }
-  }
+      })
+    );
 
-  async function openSentence(sentence) {
-    setSheet({ kind: "sentence", term: sentence, loading: true });
-    try {
-      const data = await lookupSentence({
+  const openSentence = (sentence) =>
+    open("sentence", sentence, `s:${sentence}`, () =>
+      lookupSentence({
         geminiKey: keys.gemini,
         proxy: keys.proxy,
         proxyToken: keys.token,
         sentence,
-      });
-      setSheet({ kind: "sentence", term: sentence, data });
-    } catch (e) {
-      setSheet({ kind: "sentence", term: sentence, error: e.message });
-    }
-  }
+      })
+    );
 
   async function send() {
     const q = draft.trim();
