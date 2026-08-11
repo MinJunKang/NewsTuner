@@ -491,43 +491,81 @@ export default function App() {
 
           {panelOpen && (
             <>
+              <details className="howto howto--guide">
+                <summary>각 항목이 무슨 뜻인가요?</summary>
+                <ul>
+                  <li>
+                    <b>분야</b> — 어떤 종류의 글을 읽을지 고릅니다. 고르면 그 분야를 잘 쓰는
+                    매체 두 곳이 아래 줄에 나옵니다.
+                  </li>
+                  <li>
+                    <b>매체</b> — 어느 언론사에서 기사를 찾을지 고릅니다. 앞의 숫자는 라디오
+                    주파수처럼 붙여 둔 것일 뿐 의미는 없습니다.
+                  </li>
+                  <li>
+                    <b>난이도</b> — <b>쉽게</b>와 <b>원문 수준</b>은 사실만 가져와 새로 쓴 글의
+                    문체 수준입니다. <b>원문</b>은 새로 쓰지 않고, 기사를 직접 붙여넣어 원문
+                    그대로 읽는 모드입니다.
+                  </li>
+                  <li>
+                    <b>길이</b> — 새로 쓸 글의 분량입니다. 원문 모드에서는 쓰지 않습니다.
+                  </li>
+                  <li>
+                    <b>찾고 싶은 내용</b> — 비워도 됩니다. 적으면 고른 분야·매체 안에서 그쪽에
+                    가까운 기사를 고릅니다.
+                  </li>
+                </ul>
+              </details>
+
               <div className="row">
-                {FIELDS.map((f) => (
-                  <Chip
-                    key={f.id}
-                    on={f.id === field.id}
-                    onClick={() => {
-                      setField(f);
-                      setSource(f.sources[0]);
-                    }}
-                  >
-                    {f.label}
-                  </Chip>
-                ))}
+                <span className="row__label">분야</span>
+                <div className="row__chips">
+                  {FIELDS.map((f) => (
+                    <Chip
+                      key={f.id}
+                      on={f.id === field.id}
+                      onClick={() => {
+                        setField(f);
+                        setSource(f.sources[0]);
+                      }}
+                    >
+                      {f.label}
+                    </Chip>
+                  ))}
+                </div>
               </div>
               <div className="row">
-                {field.sources.map((s) => (
-                  <Chip key={s.id} on={s.id === source.id} onClick={() => setSource(s)}>
-                    {s.freq} {s.short}
-                  </Chip>
-                ))}
-                <span className="hint">{source.note}</span>
+                <span className="row__label">매체</span>
+                <div className="row__chips">
+                  {field.sources.map((s) => (
+                    <Chip key={s.id} on={s.id === source.id} onClick={() => setSource(s)}>
+                      {s.freq} {s.short}
+                    </Chip>
+                  ))}
+                  <span className="hint">{source.note}</span>
+                </div>
               </div>
               <div className="row">
-                {LEVELS.map((l) => (
-                  <Chip key={l.id} on={l.id === level.id} onClick={() => setLevel(l)}>
-                    {l.label}
-                  </Chip>
-                ))}
-                <span className="hint">{level.hint}</span>
+                <span className="row__label">난이도</span>
+                <div className="row__chips">
+                  {LEVELS.map((l) => (
+                    <Chip key={l.id} on={l.id === level.id} onClick={() => setLevel(l)}>
+                      {l.label}
+                    </Chip>
+                  ))}
+                  <span className="hint">{level.hint}</span>
+                </div>
               </div>
               <div className="row" hidden={level.id === "paste"}>
-                {LENGTHS.map((l) => (
-                  <Chip key={l.id} on={l.id === length.id} onClick={() => setLength(l)}>
-                    {l.label}
-                  </Chip>
-                ))}
-                <span className="hint">{length.hint}</span>
+                <span className="row__label">길이</span>
+                <div className="row__chips">
+                  {LENGTHS.map((l) => (
+                    <Chip key={l.id} on={l.id === length.id} onClick={() => setLength(l)}>
+                      {l.label}
+                    </Chip>
+                  ))}
+                  <span className="hint">{length.hint}</span>
+                </div>
               </div>
 
               {level.id === "paste" ? (
