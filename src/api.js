@@ -331,11 +331,13 @@ Report on that exact story, not a different one.
 `
     : `Use Google Search to find a real story published in ${recency} by ${source.label} on the topic: ${topic}.
 
-Start by searching ${source.label}'s own site: put site:${source.domain} in your query. Run
-more than one query with different wording before deciding. If that operator returns nothing
-useful, search again without it, but still take only stories published on ${source.domain} —
-another outlet's coverage of the same event does not count. If ${source.label} has not
-covered this topic in ${recency}, say so with "error" rather than substituting another outlet.
+Run several searches with different wording before deciding. site:${source.domain} is one
+query worth trying, but do not rely on it alone — if it returns little, search normally by
+outlet name and topic. What matters is that the story you end up reporting was published on
+${source.domain}; another outlet's coverage of the same event does not count.
+
+You must actually open search results and report from them. If you find nothing usable on
+${source.domain}, set "error" — never write the article from memory.
 ${focusLine}`;
 
   const prompt = `${intro}
@@ -522,10 +524,9 @@ above. Exclude the story you just reported. If you found no others, use an empty
   // 낫습니다. 둘 다 없을 때만 기사를 막습니다.
   article.url = article.sources[0]?.uri || onDomain(article.url, source.domain) || "";
 
-  if (!article.url)
-    throw new Error(
-      "출처를 확인할 수 없어 기사를 표시하지 않습니다. 다시 시도하거나 길이를 줄여 보세요."
-    );
+  // 여기서 기사를 막아 봤지만, 판단이 그라운딩 정보 하나에 걸려 있고 그 정보가
+  // 자주 빠져 와서 정상 기사까지 막혔습니다. 막는 대신 화면에 경고를 띄웁니다.
+  // 위험은 알리되 앱은 쓸 수 있어야 합니다.
 
   article.related = (Array.isArray(article.related) ? article.related : [])
     .map((r) => ({

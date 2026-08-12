@@ -1015,7 +1015,7 @@ export default function App() {
                     // 링크는 그라운딩 출처에서만 옵니다. 비어 있다는 것은 검색 결과에
                     // 근거하지 않았을 수 있다는 뜻이라, 단순한 빈칸이 아닙니다.
                     <span className="article__origin article__origin--none">
-                      출처 없음 · 검색 결과에 근거하지 않았을 수 있습니다
+                      출처를 확인하지 못했습니다 · 실제 기사가 아닐 수 있으니 내용을 믿지 마세요
                     </span>
                   ))}
 
