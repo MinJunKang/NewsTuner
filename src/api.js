@@ -261,6 +261,45 @@ async function feedStories({ proxy, proxyToken, source, focus, exclude }) {
   return list.slice(0, 5);
 }
 
+// 전문을 쥐고 쓴 기사는 원문과 코드로 대조할 수 있습니다. 프롬프트에 "지어내지
+// 말라"고 적는 것과 달리 이쪽은 무시될 수 없습니다. 큰따옴표 안의 말과 두 자리
+// 이상의 수치는 원문에 실제로 있어야 합니다. Quanta 의 에르되시 기사에서 없는
+// 문제 번호와 없는 발언이 실려 나온 뒤에 넣었습니다.
+const normForMatch = (t) =>
+  String(t || "")
+    .replace(/[‘’‛′]/g, "'")
+    .replace(/[“”‟″]/g, '"')
+    .replace(/[‐-―−]/g, "-")
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+
+function fidelityIssues(article, full) {
+  const src = normForMatch(`${full.title || ""} ${full.paragraphs.join(" ")}`);
+  const body = normForMatch((article?.paragraphs || []).join("\n"));
+
+  // 네 단어 이상의 직접 인용만 봅니다. 한두 단어를 따옴표로 감싼 것은 인용이
+  // 아니라 용어 표시일 때가 많습니다.
+  const quotes = [];
+  for (const m of body.matchAll(/"([^"]{12,400})"/g)) {
+    const q = m[1].trim().replace(/^[\s,.;:]+|[\s,.;:]+$/g, "");
+    if (q.split(" ").length < 4) continue;
+    if (!src.includes(q)) quotes.push(q);
+  }
+
+  // 원문에 없는 숫자는 대개 기억에서 온 것입니다(문제 번호, 반올림한 총계).
+  // 한 자리 수는 표현 차이가 잦아 제외합니다.
+  const srcNums = new Set((src.match(/\d[\d,]*/g) || []).map((n) => n.replace(/,/g, "")));
+  const numbers = [
+    ...new Set(
+      (body.match(/\d[\d,]*/g) || []).map((n) => n.replace(/,+$/, "")).filter((n) => {
+        const clean = n.replace(/,/g, "");
+        return clean.length >= 2 && !srcNums.has(clean);
+      })
+    ),
+  ];
+  return { quotes: quotes.slice(0, 6), numbers: numbers.slice(0, 8) };
+}
+
 // 같은 매체·키워드로 연달아 받을 때, 후보 목록을 매번 새로 검색하면 매번
 // 10초 안팎과 검색 호출 하나를 다시 냅니다. 목록은 몇 분 안에는 그대로이므로
 // 세션 메모리에 잠깐 들고 있다가 재사용합니다. 다 소진되거나 10분이 지나면
@@ -743,6 +782,17 @@ FACTS — what has to be exactly right
   without a date rather than reaching for the one you have.
 - Quote a person directly only if you found that exact quote. Never invent a quote or put
   words in a named person's mouth. When unsure, paraphrase with attribution.
+- An analogy or example belongs to whoever made it in the source. Never compose one and hand
+  it to a named person, or build a paragraph around a comparison the source does not contain.
+- Never number a problem, case, section or item unless the source gives that number. "Three
+  of the problems" stays three of the problems; inventing #146 and #183 to make it concrete
+  produces the kind of detail a reader repeats and is wrong about. Same for totals and dates
+  you did not read — do not round a count the source states precisely.
+- Report a survey, poll or consensus only if the source says one happened. People interviewed
+  are not people "surveyed". One named person's view stays theirs — never promote it to
+  "experts say", and keep any condition they attached to it.
+- Explain why something is so only where the source explains it. If it says one field proved
+  more approachable and does not say why, report that — do not supply a mechanism of your own.
 - Keep each quotation in the context where it appears. A quote said about one topic must not
   be moved next to a different topic, where it would seem to be about that instead.
 - Keep the source's degree of certainty exactly. If researchers are "considering" or
@@ -939,6 +989,73 @@ ${full.paragraphs.join("\n\n")}`
       logIssue("기사열기실패", source?.id, (full ? "전문 " : "검색 ") + article.error);
       return { fail: "error" };
     }
+    // 전문이 있으면 다 쓴 기사를 원문과 대조합니다. 원문에 없는 직접 인용과
+    // 수치가 있으면 그 목록을 들고 한 번 고쳐 쓰게 합니다. 위반이 없으면
+    // 추가 호출도 없습니다.
+    if (full) {
+      const bad = fidelityIssues(article, full);
+      if (bad.quotes.length || bad.numbers.length) {
+        logIssue(
+          "원문불일치",
+          source?.id,
+          [
+            bad.quotes.length ? `인용 ${bad.quotes.length}건: ${bad.quotes[0].slice(0, 60)}` : "",
+            bad.numbers.length ? `수치: ${bad.numbers.join(", ")}` : "",
+          ]
+            .filter(Boolean)
+            .join(" / ")
+        );
+        tick("원문과 대조해 고쳐 쓰는 중…");
+        try {
+          const fixPrompt = `You wrote the article below from the SOURCE TEXT at the end. A check
+against that source found material that is not in it. Every item listed here is either invented
+or altered — the source is the only authority, and your memory of this story is not evidence.
+
+${bad.quotes.length ? `Quotations not found in the source:\n${bad.quotes.map((q) => `- "${q}"`).join("\n")}\n` : ""}${bad.numbers.length ? `Numbers not found in the source: ${bad.numbers.join(", ")}\n` : ""}
+Fix ONLY these. For each one: if the source supports a corrected version, write that; otherwise
+delete the claim, and delete the whole sentence or paragraph if what is left says nothing. Never
+swap an invented number for another number, and never keep a quotation by attributing it to
+someone else. Leave every other sentence exactly as it is. Do not add new material.
+
+Reply with the same JSON object, corrected, and nothing else.
+
+YOUR ARTICLE:
+${JSON.stringify({ ...article, related: undefined })}
+
+SOURCE TEXT:
+
+${full.paragraphs.join("\n\n")}`;
+          const fixed = await call(fixPrompt, ARTICLE_SCHEMA, false);
+          const reparsed = tryParse(fixed.text);
+          if (reparsed?.paragraphs?.length) {
+            const still = fidelityIssues(reparsed, full);
+            // 고친 쪽이 더 낫지 않으면 버립니다. 재작성이 오히려 새로 지어내는
+            // 경우를 막습니다.
+            if (
+              still.quotes.length + still.numbers.length <
+              bad.quotes.length + bad.numbers.length
+            ) {
+              article = { ...reparsed, related: article.related };
+              if (still.quotes.length || still.numbers.length)
+                logIssue(
+                  "불일치잔여",
+                  source?.id,
+                  `인용 ${still.quotes.length} / 수치 ${still.numbers.join(", ") || "없음"}`
+                );
+            } else {
+              logIssue("교정실패", source?.id, "고쳐 쓴 쪽이 더 낫지 않아 폐기");
+            }
+          }
+        } catch {
+          // 교정에 실패해도 원래 기사로 계속합니다. 기록은 이미 남았습니다.
+        }
+      }
+    } else {
+      // 전문 없이 검색 발췌로 쓴 기사는 원문 대조가 불가능합니다. 날조 위험이
+      // 가장 큰 경로이므로, 조용히 지나가지 않도록 남깁니다.
+      logIssue("검색집필", source?.id, chosen?.url || "후보 없음");
+    }
+
     // 전문을 실제로 받아온 주소, 또는 발행사 피드에서 온 주소는 실존이
     // 증명된 것입니다.
     return { article, cand, aliveUrl: full || chosen?.proven ? chosen?.url : null };
