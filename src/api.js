@@ -146,6 +146,33 @@ const tryParse = (t) => {
   }
 };
 
+// 기사 전문을 서버(/extract)로 가져옵니다. 성공하면 모델이 검색 발췌 대신
+// 전문을 놓고 쓰므로 분량과 정확도가 함께 좋아지고, 출처가 하나로 고정됩니다.
+// 허브나 차단 페이지는 문단이 거의 없어 여기서 걸러지고, 그때는 검색 경로로
+// 돌아갑니다.
+async function fetchFullText(url, proxy, proxyToken) {
+  if (!proxy || !url) return null;
+  const headers = { "Content-Type": "application/json" };
+  if (proxyToken?.trim()) headers["X-App-Token"] = proxyToken.trim();
+  try {
+    const res = await fetch(`${proxy.replace(/\/$/, "")}/extract`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ url }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const paragraphs = (Array.isArray(data?.paragraphs) ? data.paragraphs : [])
+      .map(stripMarkers)
+      .filter(Boolean);
+    const words = paragraphs.join(" ").split(/\s+/).filter(Boolean).length;
+    if (paragraphs.length < 5 || words < 250) return null;
+    return { title: stripMarkers(data.title || ""), paragraphs };
+  } catch {
+    return null;
+  }
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const findDetail = (details, type) =>
@@ -464,8 +491,8 @@ something unrelated is not. If ${source.label} published nothing on it in ${rece
   // 상반된 지시가 됩니다. 고르는 규칙은 목록을 못 받았을 때의 대체 경로에만 둡니다.
   // 프롬프트를 후보마다 다시 만듭니다. 1번 후보를 열지 못하면 다음 후보로
   // 넘어가야 하는데, 프롬프트를 한 번만 만들면 그럴 수가 없습니다.
-  const buildPrompt = (chosen) => {
-    const intro = chosen
+  const buildPrompt = (chosen, full) => {
+    let intro = chosen
       ? `Report this specific story, published by ${source.label}:
 Headline: ${chosen.title}
 Address: ${chosen.url}
@@ -487,11 +514,30 @@ The story must be published on ${source.domain}; another outlet's coverage of th
 does not count.
 
 Skip pages that are not articles — dashboards, tag and topic hubs, category pages, live
-blogs, galleries, video and podcast pages, and podcast or interview transcripts even at
-article-like addresses. Among what is left, take the one with the most
+blogs, galleries, video and podcast pages. Among what is left, take the one with the most
 substantial reporting. You must open search results and report from them: if you find nothing
 usable on ${source.domain}, set "error" rather than writing from memory.
 ${focusLine}`;
+
+    // 전문이 있으면 검색이 아니라 아래 본문이 유일한 재료입니다.
+    if (full)
+      intro = `Report this story, published by ${source.label}:
+Headline: ${chosen.title}
+Address: ${chosen.url}
+
+The complete text of the story appears at the end of this message under SOURCE TEXT.
+Work only from that text. Do not search, and do not bring in anything the text does not say.`;
+
+    const quotaRule = full
+      ? `- The word count is a target, not a quota. You have the complete text below — if it
+  does not support the target, write less. Never invent detail, speculate, or pad to
+  reach the number.`
+      : `- The word count is a target, not a quota — but falling short of it usually means you have
+  not read enough of the story, not that the story is thin. Before settling for less, search
+  again for more of this same story: its headline, its distinctive phrases, names it
+  mentions, each scoped to ${source.domain}. Only when that still leaves you without
+  material, write less. Never invent detail, speculate, or pad to reach the number.`;
+
     return `${intro}
 
 Write YOUR OWN English article reporting that story.
@@ -559,11 +605,7 @@ SHAPE — how the article is built
   organisation, a study, a concrete example. A paragraph that only asserts something in
   general terms is the paragraph to cut.
 - Do not close by restating your opening. Say what happens next, and stop.
-- The word count is a target, not a quota — but falling short of it usually means you have
-  not read enough of the story, not that the story is thin. Before settling for less, search
-  again for more of this same story: its headline, its distinctive phrases, names it
-  mentions, each scoped to ${source.domain}. Only when that still leaves you without
-  material, write less. Never invent detail, speculate, or pad to reach the number.
+${quotaRule}
 
 STYLE — how it should read
 - Reading level: ${levelSpec}
@@ -597,10 +639,18 @@ Reply with JSON and nothing else. No markdown fences, no preamble.
  "keywords": [{"word": "...", "ko": "...", "note": "기사 속 쓰임 한 줄"}],
  "related": [{"title": "original headline", "titleKo": "한국어 제목", "url": "canonical URL"}]
 }
-Exactly 5 keywords, chosen for a Korean learner of English.`;
+Exactly 5 keywords, chosen for a Korean learner of English.${
+      full
+        ? `
+
+SOURCE TEXT — the complete story. Work only from this:
+
+${full.paragraphs.join("\n\n")}`
+        : ""
+    }`;
   };
 
-  const call = (promptText, schema) =>
+  const call = (promptText, schema, useSearch) =>
     gemini({
       geminiKey,
       proxy,
@@ -608,27 +658,41 @@ Exactly 5 keywords, chosen for a Korean learner of English.`;
       model: MODELS.news,
       // 검색을 몇 번 돌릴지 정하는 것도 생각의 일부입니다. 긴 분량은 같은 기사를
       // 여러 검색으로 캐야 채워지는데, low 로는 한두 번 검색하고 재료 부족으로
-      // 결론 내립니다. 길게일 때만 medium 을 씁니다. 생각 토큰은 출력 단가로
-      // 과금되므로 짧은 분량까지 올리지는 않습니다.
-      thinkingLevel: length === "long" ? "medium" : "low",
+      // 결론 내립니다. 길게일 때만 medium 을 씁니다. 전문이 손에 있으면 캘 것이
+      // 없으므로 low 로 충분합니다.
+      thinkingLevel: useSearch && length === "long" ? "medium" : "low",
       contents: [{ role: "user", parts: [{ text: promptText }] }],
-      tools: [{ google_search: {} }],
+      // 전문이 있으면 검색을 끕니다. 다른 기사가 섞일 통로가 사라지고, 검색
+      // 주입 입력과 그라운딩 호출 비용도 함께 사라집니다.
+      tools: useSearch ? [{ google_search: {} }] : undefined,
       schema,
     });
 
   // 후보 하나를 놓고 기사를 써 봅니다. 못 쓰면 이유를 돌려주고, 부르는 쪽이
   // 다음 후보로 넘어갑니다.
   async function attempt(chosen) {
-    const promptText = buildPrompt(chosen);
+    // 프록시가 있으면 기사 전문을 먼저 가져와 봅니다. 실패하면 검색 경로입니다.
+    let full = null;
+    if (chosen?.url && proxy) {
+      tick("기사 전문을 가져오는 중…");
+      full = await fetchFullText(chosen.url, proxy, proxyToken);
+      tick(
+        full
+          ? `전문 ${full.paragraphs.length}문단 확보 · 다시 쓰는 중…`
+          : "전문을 가져오지 못해 검색으로 읽는 중…"
+      );
+    }
+    const useSearch = !full;
+    const promptText = buildPrompt(chosen, full);
 
     // 검색 그라운딩과 스키마를 함께 쓰는 것은 아직 미리보기라, 거부당하면
     // 스키마 없이 한 번 더 시도합니다. 프롬프트에 형식이 적혀 있어 동작합니다.
     let text, cand;
     try {
-      ({ text, cand } = await call(promptText, ARTICLE_SCHEMA));
+      ({ text, cand } = await call(promptText, ARTICLE_SCHEMA, useSearch));
     } catch (e) {
       if (e.status !== 400 || !/schema|response_?format/i.test(e.message)) throw e;
-      ({ text, cand } = await call(promptText, undefined));
+      ({ text, cand } = await call(promptText, undefined, useSearch));
     }
     let article = tryParse(text);
 
@@ -637,7 +701,7 @@ Exactly 5 keywords, chosen for a Korean learner of English.`;
     // 후보 없이 한 번에 찾아 쓰는 경로에서만 재시도합니다.
     if (!chosen && !grounded(cand)) {
       try {
-        const plain = await call(promptText, undefined);
+        const plain = await call(promptText, undefined, useSearch);
         const parsed = tryParse(plain.text);
         if (parsed && grounded(plain.cand)) {
           article = parsed;
@@ -820,11 +884,8 @@ FINDING THEM
 - Every story must live on ${source.domain}. Another outlet's coverage of the same event does
   not count, however good it is.
 - Skip pages that are not articles: dashboards, tag and topic hubs, category and section
-  pages, live blogs, galleries, video and podcast pages. Also skip podcast episode pages and
-  interview or Q&A transcripts even when they live at an article-like address — an hour of
-  conversation cannot be re-reported as a short article without discarding most of it.
-  Everything else is fair game — do not skip a story just because the result did not show a
-  byline. Most will not.
+  pages, live blogs, galleries, video and podcast pages. Everything else is fair game — do
+  not skip a story just because the result did not show a byline. Most will not.
 
 WHAT TO REPORT BACK
 - "title" is the story's own published headline, copied exactly. Do not rewrite, shorten or
