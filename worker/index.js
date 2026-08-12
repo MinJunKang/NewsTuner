@@ -25,6 +25,7 @@ const ALLOWED_MODELS = new Set([
 const ALLOWED_HOSTS = new Set([
   "npr.org",
   "apnews.com",
+  "propublica.org",
   "pbs.org",
   "theconversation.com",
   "quantamagazine.org",

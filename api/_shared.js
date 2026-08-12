@@ -10,6 +10,7 @@ export const ALLOWED_MODELS = new Set(["gemini-3.6-flash", "gemini-3.5-flash-lit
 export const ALLOWED_HOSTS = new Set([
   "npr.org",
   "apnews.com",
+  "propublica.org",
   "pbs.org",
   "theconversation.com",
   "quantamagazine.org",

@@ -27,6 +27,9 @@ const FIELDS = [
       { id: "ap", label: "AP News", short: "AP", freq: "89.7",
         domain: "apnews.com",
         window: "the last few days", note: "짧고 명확한 통신사 문체" },
+      { id: "propub", label: "ProPublica", short: "PROPUB", freq: "90.1",
+        domain: "propublica.org",
+        window: "the last week", note: "탐사보도 장문, CC 라이선스" },
     ],
   },
   {
