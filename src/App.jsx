@@ -43,6 +43,9 @@ const FIELDS = [
       { id: "tconv", length: "mid", label: "The Conversation US", short: "CONV", freq: "91.5",
         domain: "theconversation.com",
         window: "the last few days", note: "학자가 직접 쓰는 해설, 문장 밀도 높음" },
+      { id: "bbc", length: "mid", label: "BBC News", short: "BBC", freq: "92.3",
+        domain: "bbc.com",
+        window: "the last few days", note: "세계 보도의 표준, 평이하고 명확한 문장" },
     ],
   },
   {

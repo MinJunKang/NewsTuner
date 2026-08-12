@@ -27,6 +27,7 @@ const ALLOWED_HOSTS = new Set([
   "apnews.com",
   "propublica.org",
   "scotusblog.com",
+  "bbc.com",
   "pbs.org",
   "theconversation.com",
   "quantamagazine.org",

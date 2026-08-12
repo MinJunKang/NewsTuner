@@ -102,7 +102,13 @@ export function looksLikeArticleUrl(u) {
   const last = segs[segs.length - 1];
   if (/\.(jpg|jpeg|png|gif|webp|pdf|mp3|mp4)$/i.test(last)) return false;
 
-  // 기사 주소는 날짜를 담거나, 제목에서 온 하이픈 슬러그를 답니다.
+  // BBC 신형 주소(/news/articles/c20dqd9qwq4o)는 날짜도 하이픈 슬러그도 없이
+  // 무작위 식별자를 씁니다. article/story 구간 뒤에 식별자가 오면 기사입니다.
+  for (let i = 0; i < segs.length - 1; i++) {
+    if (/^(articles?|stor(y|ies))$/i.test(segs[i]) && segs[i + 1]) return true;
+  }
+
+  // 그 외 기사 주소는 날짜를 담거나, 제목에서 온 하이픈 슬러그를 답니다.
   const hasDate = /\/(19|20)\d{2}\/\d{1,2}\//.test(path);
   const hasSlug = (last.match(/-/g) || []).length >= 2;
   return hasDate || hasSlug;
