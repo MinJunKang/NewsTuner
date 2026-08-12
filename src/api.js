@@ -629,30 +629,38 @@ const STORIES_SCHEMA = {
 
 // 본문은 가져오지 않습니다. 무엇이 있는지 제목과 링크만 알려줍니다.
 export async function findStories({ geminiKey, proxy, proxyToken, source, topic, focus }) {
+  // 키워드가 있으면 최신순이 아니라 관련순으로 찾아야 합니다. 발행 기간까지
+  // 좁게 걸면 그 주제 기사가 그 며칠 안에 없다는 이유로 매번 빈손이 됩니다.
   const recency = source.window || "the last few days";
-  const focusLine = focus
-    ? `
-Every story you list must be about ${focus}, or clearly connected to it. A story that has
-nothing to do with ${focus} is not a fallback — leave it out, even if that leaves the list
-short or empty. Returning an unrelated story is worse than returning none.
-`
-    : "";
 
-  const prompt = `Use Google Search to list real stories published in ${recency} by ${source.label} on the topic: ${topic}.
+  const goal = focus
+    ? `Find articles on ${source.domain} whose headline is about ${focus}.
 
-Search ${source.label}'s own site: put site:${source.domain} in your queries and run several
-with different wording. Every story you list must live on ${source.domain}. Do not fill the
-list out with another outlet's coverage of the same events.
-${focusLine}
+Judge each candidate from its headline first. Order the list by how directly the headline is
+about ${focus} — closest first, not newest first. Recency barely matters here; a good match
+from a few months ago beats a loose one from yesterday. Include a story only if its headline
+or subject really is about ${focus}. If only two qualify, list two. If none do, return an
+empty list — an unrelated story is not a fallback.`
+    : `List what ${source.label} has published most recently on ${topic}, newest first.
+
+Order by publication date, newest first. I want what they have just put out, not their
+best-known or most-read pieces. Stay within ${recency}.`;
+
+  const prompt = `Use Google Search on ${source.label}'s own site. ${goal}
+
+Put site:${source.domain} in your queries and run several with different wording. Every story
+you list must live on ${source.domain} — another outlet's coverage of the same event does not
+count.
+
 Skip pages that are not articles: election guides, results dashboards, topic or tag hubs,
 category and section pages, live blogs, photo galleries, video pages and podcast episode
 pages. Everything else is fair game — do not skip a story just because the search result did
 not display a byline.
 
-List up to 5 stories, most relevant first. Use each story's own published headline exactly as
-it appears — do not rewrite or translate it in the "title" field. Every story needs a real
-canonical URL on the publisher's own site; drop any story you cannot link. Do not summarise
-the article body beyond one short Korean sentence saying what it is about.
+List up to 8 candidates. Use each story's own published headline exactly as it appears — do
+not rewrite or translate it in the "title" field. Every story needs a real canonical URL on
+the publisher's own site; drop any story you cannot link. Do not summarise the article body
+beyond one short Korean sentence saying what it is about.
 
 Reply with JSON and nothing else:
 {"stories": [{"title": "...", "url": "...", "published": "YYYY-MM-DD", "summaryKo": "...", "matchesRequest": true}]}`;
@@ -670,6 +678,8 @@ Reply with JSON and nothing else:
   });
 
   const parsed = extractJson(text);
+  // 8건을 받아 거른 뒤 5건만 남깁니다. 여유를 두지 않으면 주소나 관련성 검사에서
+  // 빠진 만큼 목록이 그대로 짧아집니다.
   const list = (Array.isArray(parsed?.stories) ? parsed.stories : [])
     .map((s) => ({
       title: stripMarkers(s?.title),
