@@ -197,7 +197,7 @@ function summarizeErrLog(maxChars) {
   const lines = entries
     .slice(0, 30)
     .map((e) => `${(e.t || "").slice(0, 16)} [${e.kind}] ${e.where}: ${e.msg}`);
-  let body = `News Tuner 오류 기록 (최근 ${lines.length}건)\n\n`;
+  let body = `News Tuner 오류 기록 (빌드 ${__BUILD_ID__}, 최근 ${lines.length}건)\n\n`;
   for (const l of lines) {
     if ((body + l).length > maxChars) break;
     body += l + "\n";
