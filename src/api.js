@@ -802,7 +802,11 @@ Reply with JSON and nothing else:
       proxyToken,
       model: MODELS.news,
       thinkingLevel: level,
-      maxOutputTokens: 2500,
+      // 생각 토큰이 출력 상한을 함께 깎을 수 있습니다(공식 문서도 "여유 있게
+      // 잡고 finishReason 을 보라"고만 합니다). 재시도에서 생각을 medium 으로
+      // 올린 뒤 2500 이 잘리기 시작해 여유를 크게 둡니다. 상한은 안전판일 뿐,
+      // 목록 JSON 자체는 1~2천 토큰이면 끝납니다.
+      maxOutputTokens: 8000,
       contents: [{ role: "user", parts: [{ text: preface + prompt }] }],
       tools: [{ google_search: {} }],
       schema,
