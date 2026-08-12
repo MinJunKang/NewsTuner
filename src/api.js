@@ -498,6 +498,14 @@ FACTS — what has to be exactly right
   do not dress a fringe claim up as an equal side.
 
 SHAPE — how the article is built
+- Before writing, work out what the story is about — not its topic, but its tension: who
+  wants what, who is resisting, what is at stake, what changed. Say it to yourself in one
+  sentence. Then make the article serve that sentence: a reader who finishes your version
+  should answer "so what is the dispute, and between whom?" the same way a reader of the
+  original would. An article that lists correct facts but loses this is a failed rewrite.
+- Keep each actor attached to their stake. Who demanded, who refused, who opposes, who is
+  blamed, whose money or land or job is on the line — these relationships are the story.
+  A fact that does not serve the story's own question is the fact to cut, even if true.
 - The first paragraph says what makes this news now: the specific thing that happened — a
   ruling, a filing, a vote, a finding, an announcement — and who did it. Give its date there
   when the story supplies one. Do not open with general background on the field; background
