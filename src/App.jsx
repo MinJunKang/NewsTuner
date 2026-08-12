@@ -161,8 +161,8 @@ const REPORT_EMAIL = () => ["kmmj2005", ["gmail", "com"].join(".")].join("\u0040
 // 브라우저는 메일을 직접 발송할 수 없어(mailto 가 한계), 폼으로 무음 POST 하고
 // 폼의 "새 응답 이메일 알림"이 Gmail 로 알려주는 방식입니다. README 부록 참고.
 const REPORT_FORM = {
-  formId: "",  // 폼 주소의 /d/e/ 뒤 긴 문자열
-  entryId: "", // 미리 채운 링크의 entry.숫자 에서 숫자
+  formId: "1FAIpQLScYfITPzPO2iDUAqhUMk94PzzlHzWOgt-m4dQoVRuKPlRqyvg",
+  entryId: "2050914000",
 };
 
 // 최근 기록을 전송용 한 줄 요약으로 만듭니다. mailto 와 폼 전송이 공유합니다.
