@@ -839,7 +839,8 @@ ${full.paragraphs.join("\n\n")}`
       logIssue("기사열기실패", source?.id, (full ? "전문 " : "검색 ") + article.error);
       return { fail: "error" };
     }
-    return { article, cand };
+    // 전문을 실제로 받아왔다면 그 주소는 살아 있음이 증명된 것입니다.
+    return { article, cand, aliveUrl: full ? chosen?.url : null };
   }
 
   // 1번 후보를 열지 못하는 일이 있습니다. 유료 장벽이 대표적입니다. 목록에
@@ -849,6 +850,7 @@ ${full.paragraphs.join("\n\n")}`
 
   let article = null;
   let cand = null;
+  let aliveUrl = null;
   let lastFail = "error";
   let nth = 0;
   for (const chosen of attempts) {
@@ -857,6 +859,7 @@ ${full.paragraphs.join("\n\n")}`
     if (r.article) {
       article = r.article;
       cand = r.cand;
+      aliveUrl = r.aliveUrl || null;
       // 실제로 쓴 기사를 기준으로 주소와 관련 기사를 정합니다.
       if (chosen) {
         picked = chosen;
@@ -907,11 +910,14 @@ ${full.paragraphs.join("\n\n")}`
   // 발행일도 목록 단계 값이 더 믿을 만합니다. 검색 결과에 붙어 오는 값입니다.
   if (picked?.published) article.published = picked.published;
 
-  // 옛 경로에서 모델이 적어 낸 주소는 기억으로 지어낸 옛 형식일 수 있고,
-  // 도메인과 날짜 모양 검사는 그것을 못 잡습니다(실제로 404 링크가 표시된
-  // 사례가 있었습니다). 워커가 있으면 표시 전에 생존을 확인해 죽은 주소를
-  // 뗍니다.
-  if (!picked?.url && article.url && proxy) {
+  // 마지막 안전벨트입니다. 표시하려는 주소가 "실제로 열린 적 있음"이 증명되지
+  // 않았다면(전문 추출 성공 = 증명, 그라운딩 주소 = 구글이 연 것 = 증명),
+  // 표시 직전에 생존을 한 번 확인합니다. 상류 검사 어느 한 겹이 어떤 이유로
+  // 건너뛰어져도 죽은 주소가 화면까지 오지 못합니다.
+  const urlProven =
+    article.url &&
+    (article.url === aliveUrl || article.sources.some((c) => c.uri === article.url));
+  if (article.url && !urlProven && proxy) {
     const deadOne = await deadUrls([article.url], proxy, proxyToken);
     if (deadOne?.has(article.url)) {
       logIssue("지어낸주소제거", source?.id, article.url);
