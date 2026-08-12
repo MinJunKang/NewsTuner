@@ -21,12 +21,19 @@ export function extractJson(text) {
   const start = stripped.indexOf("{");
   const end = stripped.lastIndexOf("}");
   if (start === -1 || end === -1) throw new Error("모델이 JSON 형식으로 답하지 않았습니다.");
+  const body = stripped.slice(start, end + 1);
   try {
-    return JSON.parse(stripped.slice(start, end + 1));
+    return JSON.parse(body);
   } catch {
-    // JSON.parse 의 "Unexpected token" 메시지를 그대로 보여주면 사용자가 할 수
-    // 있는 일이 없습니다. 다시 시도하면 대개 풀립니다.
-    throw new Error("모델 응답을 읽지 못했습니다. 다시 시도해 주세요.");
+    // 스키마 없이 받은 응답에서 자주 나오는 실수 하나만 고쳐 다시 시도합니다.
+    // 마지막 항목 뒤에 쉼표를 남기는 것인데, JSON 에서는 허용되지 않습니다.
+    try {
+      return JSON.parse(body.replace(/,(\s*[}\]])/g, "$1"));
+    } catch {
+      // JSON.parse 의 "Unexpected token" 메시지를 그대로 보여주면 사용자가 할 수
+      // 있는 일이 없습니다. 다시 시도하면 대개 풀립니다.
+      throw new Error("모델 응답을 읽지 못했습니다. 다시 시도해 주세요.");
+    }
   }
 }
 
@@ -441,6 +448,13 @@ above. Exclude the story you just reported. If you found no others, use an empty
   // 스키마 없이 한 번 더 시도합니다. 프롬프트에 형식이 그대로 적혀 있어
   // 그 경로로도 동작합니다.
   const grounded = (c) => (c?.groundingMetadata?.groundingChunks || []).length > 0;
+  const tryParse = (t) => {
+    try {
+      return extractJson(t);
+    } catch {
+      return null;
+    }
+  };
 
   let text, cand;
   try {
@@ -449,21 +463,29 @@ above. Exclude the story you just reported. If you found no others, use an empty
     if (e.status !== 400 || !/schema|response_?format/i.test(e.message)) throw e;
     ({ text, cand } = await call(undefined));
   }
+  let article = tryParse(text);
 
   // 스키마와 검색 그라운딩을 함께 쓰는 것은 아직 미리보기라, 긴 글에서 그라운딩
   // 정보가 빠져 오는 경우가 있습니다. 출처가 없으면 기사를 막게 되어 있으므로,
-  // 스키마 없이 한 번 더 불러 봅니다. 형식은 프롬프트에도 적혀 있어 그 경로로도
-  // 나옵니다. 실패하면 처음 받은 응답을 그대로 씁니다.
+  // 스키마 없이 한 번 더 불러 봅니다.
+  //
+  // 다만 스키마를 빼면 형식 보장이 사라져, 긴 본문에 따옴표가 섞이면 JSON 이
+  // 깨집니다. 그래서 재시도 결과는 파싱에 성공하고 출처까지 있을 때만 씁니다.
+  // 그러지 않으면 멀쩡한 첫 응답을 깨진 재시도로 덮어쓰게 됩니다.
   if (!grounded(cand)) {
     try {
       const plain = await call(undefined);
-      if (grounded(plain.cand)) ({ text, cand } = plain);
+      const parsed = tryParse(plain.text);
+      if (parsed && grounded(plain.cand)) {
+        article = parsed;
+        cand = plain.cand;
+      }
     } catch {
       /* 처음 응답을 그대로 씁니다 */
     }
   }
 
-  const article = extractJson(text);
+  if (!article) throw new Error("모델 응답을 읽지 못했습니다. 다시 시도해 주세요.");
 
   if (article.error)
     throw new Error("조건에 맞는 기사를 찾지 못했습니다. 매체나 조건을 바꿔 보세요.");
