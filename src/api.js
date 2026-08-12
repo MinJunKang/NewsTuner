@@ -409,7 +409,10 @@ export async function fetchArticle({
     {
       short: "about 400 words",
       mid: "about 800 words",
-      long: "about 1500 words",
+      long:
+        "about 1500 words. A target this size cannot be filled from one or two searches — " +
+        "expect to run at least four or five different searches on this same story before " +
+        "you have enough of its content to write from",
     }[length] || "about 800 words";
 
   // 주간지에 "며칠 내"를 요구하면 해당 기사가 없어 모델이 헤맵니다.
@@ -593,9 +596,11 @@ Exactly 5 keywords, chosen for a Korean learner of English.`;
       proxy,
       proxyToken,
       model: MODELS.news,
-      // 기본값은 medium 입니다. 생각 토큰은 출력 단가로 과금되고 이 호출이 가장
-      // 비싸므로 low 로 낮춥니다. minimal 까지 내리면 검색 결과 종합이 부실해집니다.
-      thinkingLevel: "low",
+      // 검색을 몇 번 돌릴지 정하는 것도 생각의 일부입니다. 긴 분량은 같은 기사를
+      // 여러 검색으로 캐야 채워지는데, low 로는 한두 번 검색하고 재료 부족으로
+      // 결론 내립니다. 길게일 때만 medium 을 씁니다. 생각 토큰은 출력 단가로
+      // 과금되므로 짧은 분량까지 올리지는 않습니다.
+      thinkingLevel: length === "long" ? "medium" : "low",
       contents: [{ role: "user", parts: [{ text: promptText }] }],
       tools: [{ google_search: {} }],
       schema,
