@@ -952,7 +952,17 @@ Reply with JSON and nothing else:
   // 없으면 조건을 바꿔 한 번 더 시도해 보되, 그래도 없으면 목록을 받아들입니다.
   // 허위 목록은 하류가 잡습니다. 도메인과 주소 모양 검사, 워커 링크 검사,
   // 그리고 집필 단계가 제목을 검색해 흔적이 없으면 다음 후보로 넘어갑니다.
-  let { text, cand } = await listCall(STORIES_SCHEMA);
+  // lite 에서 스키마와 검색을 함께 쓰는 조합이 거부(400)될 수 있습니다. 집필
+  // 쪽에는 이 폴백이 있는데 목록에는 없어서, 거부가 나면 목록이 통째로 실패해
+  // 조용히 옛 경로로 떨어졌습니다. "출처를 확인하지 못했습니다" 경고의 유력한
+  // 진원지입니다. 스키마 없이 다시 부르면 프롬프트의 형식 지시로 동작합니다.
+  let text, cand;
+  try {
+    ({ text, cand } = await listCall(STORIES_SCHEMA));
+  } catch (e) {
+    if (e.status !== 400 || !/schema|response_?format/i.test(e.message)) throw e;
+    ({ text, cand } = await listCall(undefined));
+  }
   if (!searched(cand)) {
     try {
       // 재시도는 조건을 전부 올립니다. 스키마 제거, 생각 상향, 그리고 모델도
