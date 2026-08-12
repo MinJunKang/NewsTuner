@@ -478,9 +478,10 @@ something unrelated is not. If ${source.label} published nothing on it in ${rece
     } catch (e) {
       // 키워드를 주셨을 때 예전 경로로 넘어가면 무관한 기사를 써 오므로 그대로
       // 알립니다. 실패 이유를 키워드 메시지로 덮지 않고 그대로 올립니다.
-      // 덮으면 "검색이 수행되지 않았다" 같은 진짜 원인이 안 보입니다.
       if (focus) throw e;
-      // 키워드가 없으면 예전처럼 한 번에 찾아 쓰는 경로로 갑니다.
+      // 키워드가 없으면 옛 경로로 떨어지는데, 그러면 왜 목록이 실패했는지가
+      // 화면에서 사라집니다. 진단할 수 있게 콘솔에 남깁니다.
+      console.warn("[nt-listfail]", source?.id, e?.message || e);
       picked = null;
       tick("기사를 찾아 다시 쓰는 중…");
     }
@@ -1030,7 +1031,10 @@ Reply with JSON and nothing else:
     proxy,
     proxyToken
   );
-  const top = (dead ? list.filter((s) => !dead.has(s.url)) : list).slice(0, 5);
+  // 전부 죽었다는 판정은 검사기 쪽 오판(사이트가 확인 요청만 다르게 취급)일
+  // 가능성이 실제 전멸보다 높습니다. 그때는 판정을 버리고 목록을 살립니다.
+  const alive = dead ? list.filter((s) => !dead.has(s.url)) : list;
+  const top = (alive.length ? alive : list).slice(0, 5);
 
   if (!top.length)
     throw new Error(
