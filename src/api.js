@@ -792,17 +792,18 @@ List up to 8 candidates.
 Reply with JSON and nothing else:
 {"stories": [{"title": "...", "url": "...", "published": "YYYY-MM-DD", "summaryKo": "...", "matchesRequest": true, "relevance": 0}]}`;
 
-  const listCall = (schema) =>
+  // 생각을 minimal 로 깎았더니 모델이 검색 도구를 집지 않고 기억으로 목록을
+  // 만드는 일이 잦아졌습니다. 도구를 쓸지 말지도 생각의 일부라, 절약이 검색
+  // 자체를 없애 버립니다. low 로 둡니다.
+  const listCall = (schema, level = "low", preface = "") =>
     gemini({
       geminiKey,
       proxy,
       proxyToken,
       model: MODELS.news,
-      // 목록 만들기는 검색 결과에서 제목과 주소를 추리는 일이라 깊이 생각할
-      // 필요가 없습니다. 생각 토큰은 출력 단가로 과금됩니다.
-      thinkingLevel: "minimal",
+      thinkingLevel: level,
       maxOutputTokens: 2500,
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      contents: [{ role: "user", parts: [{ text: preface + prompt }] }],
       tools: [{ google_search: {} }],
       schema,
     });
@@ -815,7 +816,12 @@ Reply with JSON and nothing else:
   // 그라운딩이 보존되므로, 거기서도 없어야 지어낸 것으로 판단합니다.
   let { text, cand } = await listCall(STORIES_SCHEMA);
   if (!grounded(cand)) {
-    const plain = await listCall(undefined);
+    const plain = await listCall(
+      undefined,
+      "medium",
+      "Your previous attempt answered from memory without running Google Search. That is " +
+        "not acceptable: every story must come from an actual search you run now.\n\n"
+    );
     if (!grounded(plain.cand))
       throw new Error("검색이 실제로 수행되지 않았습니다. 다시 시도해 주세요.");
     const parsedPlain = tryParse(plain.text);
