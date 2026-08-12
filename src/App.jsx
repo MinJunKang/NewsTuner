@@ -21,13 +21,13 @@ const FIELDS = [
     label: "News",
     topic: "the day's main US or international news story",
     sources: [
-      { id: "npr", label: "NPR", short: "NPR", freq: "88.5",
+      { id: "npr", length: "mid", label: "NPR", short: "NPR", freq: "88.5",
         domain: "npr.org",
         window: "the last few days", note: "방송 원고라 말하는 리듬에 가까움" },
-      { id: "ap", label: "AP News", short: "AP", freq: "89.7",
+      { id: "ap", length: "mid", label: "AP News", short: "AP", freq: "89.7",
         domain: "apnews.com",
         window: "the last few days", note: "짧고 명확한 통신사 문체" },
-      { id: "propub", label: "ProPublica", short: "PROPUB", freq: "90.1",
+      { id: "propub", length: "long", label: "ProPublica", short: "PROPUB", freq: "90.1",
         domain: "propublica.org",
         window: "the last week", note: "탐사보도 장문, CC 라이선스" },
     ],
@@ -37,10 +37,10 @@ const FIELDS = [
     label: "World",
     topic: "international affairs and foreign policy",
     sources: [
-      { id: "pbs", label: "PBS NewsHour", short: "PBS", freq: "90.9",
+      { id: "pbs", length: "mid", label: "PBS NewsHour", short: "PBS", freq: "90.9",
         domain: "pbs.org",
         window: "the last few days", note: "깊이 있으면서 문장이 정갈함" },
-      { id: "tconv", label: "The Conversation US", short: "CONV", freq: "91.5",
+      { id: "tconv", length: "mid", label: "The Conversation US", short: "CONV", freq: "91.5",
         domain: "theconversation.com",
         window: "the last few days", note: "학자가 직접 쓰는 해설, 문장 밀도 높음" },
     ],
@@ -50,13 +50,13 @@ const FIELDS = [
     label: "Tech · Science",
     topic: "science, mathematics or technology research",
     sources: [
-      { id: "quanta", label: "Quanta Magazine", short: "QUANTA", freq: "93.1",
+      { id: "quanta", length: "long", label: "Quanta Magazine", short: "QUANTA", freq: "93.1",
         domain: "quantamagazine.org",
         window: "the last two weeks", note: "어려운 개념을 명료한 영어로 푸는 교본" },
-      { id: "mittr", label: "MIT Technology Review", short: "MIT TR", freq: "94.7",
+      { id: "mittr", length: "long", label: "MIT Technology Review", short: "MIT TR", freq: "94.7",
         domain: "technologyreview.com",
         window: "the last week", note: "AI·기술 정책, 연구자 어휘" },
-      { id: "ars", label: "Ars Technica", short: "ARS", freq: "95.5",
+      { id: "ars", length: "mid", label: "Ars Technica", short: "ARS", freq: "95.5",
         domain: "arstechnica.com",
         window: "the last few days", note: "IT·과학 실무 보도, 뉴스는 짧고 특집은 김" },
     ],
@@ -66,10 +66,10 @@ const FIELDS = [
     label: "Health",
     topic: "health, medicine or biotechnology",
     sources: [
-      { id: "shots", label: "NPR Shots", short: "SHOTS", freq: "96.3",
+      { id: "shots", length: "mid", label: "NPR Shots", short: "SHOTS", freq: "96.3",
         domain: "npr.org",
         window: "the last week", note: "일반 독자용 건강 보도" },
-      { id: "scinews", label: "Science News", short: "SCINEWS", freq: "97.1",
+      { id: "scinews", length: "mid", label: "Science News", short: "SCINEWS", freq: "97.1",
         domain: "sciencenews.org",
         window: "the last few days", note: "짧고 명확한 연구 뉴스, 매일 발행" },
     ],
@@ -79,10 +79,10 @@ const FIELDS = [
     label: "Economy",
     topic: "the economy, markets or business",
     sources: [
-      { id: "pmoney", label: "NPR Planet Money", short: "PMONEY", freq: "98.7",
+      { id: "pmoney", length: "mid", label: "NPR Planet Money", short: "PMONEY", freq: "98.7",
         domain: "npr.org",
         window: "the last two weeks", note: "경제 개념을 이야기로 풀어냄, 구어체" },
-      { id: "mktpl", label: "Marketplace", short: "MKTPL", freq: "99.5",
+      { id: "mktpl", length: "short", label: "Marketplace", short: "MKTPL", freq: "99.5",
         domain: "marketplace.org",
         window: "the last week", note: "비즈니스 뉴스를 쉽게" },
     ],
@@ -92,13 +92,13 @@ const FIELDS = [
     label: "Culture",
     topic: "culture, society, media or sports",
     sources: [
-      { id: "atlantic", label: "The Atlantic", short: "ATLNTIC", freq: "101.1",
+      { id: "atlantic", length: "long", label: "The Atlantic", short: "ATLNTIC", freq: "101.1",
         domain: "theatlantic.com",
         window: "the last week", note: "에세이형 장문, 어휘 수준 높음" },
-      { id: "ringer", label: "The Ringer", short: "RINGER", freq: "102.3",
+      { id: "ringer", length: "long", label: "The Ringer", short: "RINGER", freq: "102.3",
         domain: "theringer.com",
         window: "the last week", note: "스포츠·팝컬처, 관용표현이 살아 있음" },
-      { id: "defector", label: "Defector", short: "DFCTR", freq: "103.3",
+      { id: "defector", length: "long", label: "Defector", short: "DFCTR", freq: "103.3",
         domain: "defector.com",
         window: "the last few days", note: "전직 Deadspin 기자들, 구어체가 생생함" },
     ],
@@ -108,10 +108,10 @@ const FIELDS = [
     label: "Art",
     topic: "art, design, museums or architecture",
     sources: [
-      { id: "hyper", label: "Hyperallergic", short: "HYPER", freq: "104.5",
+      { id: "hyper", length: "short", label: "Hyperallergic", short: "HYPER", freq: "104.5",
         domain: "hyperallergic.com",
         window: "the last week", note: "현대미술 비평, 관점이 뚜렷함" },
-      { id: "colossal", label: "Colossal", short: "CLSSL", freq: "105.9",
+      { id: "colossal", length: "short", label: "Colossal", short: "CLSSL", freq: "105.9",
         domain: "thisiscolossal.com",
         window: "the last week", note: "현대 시각예술·공예, 짧은 소개글 형식" },
     ],
@@ -396,6 +396,15 @@ export default function App() {
   const [source, setSource] = useState(FIELDS[0].sources[0]);
   const [level, setLevel] = useState(LEVELS[1]);
   const [length, setLength] = useState(LENGTHS[1]);
+
+  // 매체마다 통상 분량이 달라서(콜로살 300단어, 프로퍼블리카 4,000단어),
+  // 매체를 고르면 그에 맞는 길이를 자동으로 맞춥니다. 이후 직접 바꾸면
+  // 그 선택이 쓰입니다.
+  const pickSource = (src) => {
+    setSource(src);
+    const auto = LENGTHS.find((l) => l.id === src.length);
+    if (auto) setLength(auto);
+  };
   const [focus, setFocus] = useState("");
   const [pasteText, setPasteText] = useState("");
   const [pasteMsg, setPasteMsg] = useState("");
@@ -828,7 +837,9 @@ export default function App() {
                     읽는 모드입니다.
                   </li>
                   <li>
-                    <b>길이</b> — 새로 쓸 글의 분량입니다. 원문 모드에서는 쓰지 않습니다.
+                    <b>길이</b> — 새로 쓸 글의 분량입니다. 매체를 고르면 그 매체의 통상
+                    분량에 맞게 자동으로 맞춰지고, 직접 바꾸면 그 선택이 우선합니다. 원문
+                    모드에서는 쓰지 않습니다.
                   </li>
                   <li>
                     <b>찾고 싶은 내용</b> — 비워도 됩니다. 적으면 고른 분야·매체 안에서 그쪽에
@@ -847,7 +858,7 @@ export default function App() {
                       disabled={busy}
                       onClick={() => {
                         setField(f);
-                        setSource(f.sources[0]);
+                        pickSource(f.sources[0]);
                       }}
                     >
                       {f.label}
@@ -863,7 +874,7 @@ export default function App() {
                       key={s.id}
                       on={s.id === source.id}
                       disabled={busy}
-                      onClick={() => setSource(s)}
+                      onClick={() => pickSource(s)}
                     >
                       {s.short}
                     </Chip>
