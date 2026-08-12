@@ -11,14 +11,15 @@ export const ALLOWED_HOSTS = new Set([
   "npr.org",
   "apnews.com",
   "pbs.org",
-  "csmonitor.com",
+  "theconversation.com",
   "quantamagazine.org",
   "technologyreview.com",
   "sciencenews.org",
   "marketplace.org",
   "theatlantic.com",
   "theringer.com",
-  "smithsonianmag.com",
+  "thisiscolossal.com",
+  "defector.com",
   "hyperallergic.com",
 ]);
 
