@@ -316,9 +316,9 @@ export async function fetchArticle({
   const focusLine = focus
     ? `
 The reader is looking for this in particular: ${focus}
-Treat it as a preference within that outlet and topic. If nothing published in ${recency} by
-${source.label} matches it, report the closest real story you actually found instead, and do
-not stretch or invent a story to fit the request.
+The story you report must be about this, or clearly connected to it. A related angle is fine;
+something unrelated is not. If ${source.label} published nothing on it in ${recency}, set
+"error" rather than reporting an unrelated story, and never stretch or invent a story to fit.
 `
     : "";
 
@@ -332,7 +332,10 @@ not stretch or invent a story to fit the request.
       listed = await findStories({ geminiKey, proxy, proxyToken, source, topic, focus });
       picked = listed[0];
     } catch {
-      // 목록을 못 받으면 예전처럼 한 번에 찾아 쓰는 경로로 갑니다.
+      // 키워드를 주셨는데 목록이 비었다는 것은 그 주제의 기사가 없다는 뜻입니다.
+      // 여기서 예전 경로로 넘어가면 무관한 기사를 써 오므로 그대로 알립니다.
+      if (focus) throw new Error(`"${focus}" 관련 기사를 찾지 못했습니다. 매체나 조건을 바꿔 보세요.`);
+      // 키워드가 없으면 예전처럼 한 번에 찾아 쓰는 경로로 갑니다.
       picked = null;
     }
   }
@@ -619,7 +622,11 @@ const STORIES_SCHEMA = {
 export async function findStories({ geminiKey, proxy, proxyToken, source, topic, focus }) {
   const recency = source.window || "the last few days";
   const focusLine = focus
-    ? `\nPrefer stories about: ${focus}. If none match, list what you did find instead.\n`
+    ? `
+Every story you list must be about ${focus}, or clearly connected to it. A story that has
+nothing to do with ${focus} is not a fallback — leave it out, even if that leaves the list
+short or empty. Returning an unrelated story is worse than returning none.
+`
     : "";
 
   const prompt = `Use Google Search to list real stories published in ${recency} by ${source.label} on the topic: ${topic}.
