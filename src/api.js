@@ -487,7 +487,8 @@ The story must be published on ${source.domain}; another outlet's coverage of th
 does not count.
 
 Skip pages that are not articles — dashboards, tag and topic hubs, category pages, live
-blogs, galleries, video and podcast pages. Among what is left, take the one with the most
+blogs, galleries, video and podcast pages, and podcast or interview transcripts even at
+article-like addresses. Among what is left, take the one with the most
 substantial reporting. You must open search results and report from them: if you find nothing
 usable on ${source.domain}, set "error" rather than writing from memory.
 ${focusLine}`;
@@ -542,6 +543,15 @@ SHAPE — how the article is built
   when the story supplies one. Do not open with general background on the field; background
   comes after the reader knows what happened.
 - Length: ${lengthSpec}. Use paragraphs of three to five sentences.
+- Cover the source from start to END. Before writing, map its sections in order and budget
+  your paragraphs across all of them — at least one for each major section, and never spend
+  more than half your article on the first half of the source. The back half of a long piece
+  is usually where its news lives (unpublished results, this year's developments), so
+  reaching it is not optional. Running out of room having covered only the opening is a
+  failed article, not a shorter one.
+- If the headline joins ideas with "or", "and", "but" or "vs", every element it names must
+  appear in your article. A piece titled "Pain or Pleasure" that never mentions pleasure has
+  failed, whatever else it got right.
 - Every paragraph must carry something no earlier paragraph carried. Before writing each one,
   ask what it adds. If it would make a point you already made in different words, do not
   write it — write a shorter article instead.
@@ -810,8 +820,11 @@ FINDING THEM
 - Every story must live on ${source.domain}. Another outlet's coverage of the same event does
   not count, however good it is.
 - Skip pages that are not articles: dashboards, tag and topic hubs, category and section
-  pages, live blogs, galleries, video and podcast pages. Everything else is fair game — do
-  not skip a story just because the result did not show a byline. Most will not.
+  pages, live blogs, galleries, video and podcast pages. Also skip podcast episode pages and
+  interview or Q&A transcripts even when they live at an article-like address — an hour of
+  conversation cannot be re-reported as a short article without discarding most of it.
+  Everything else is fair game — do not skip a story just because the result did not show a
+  byline. Most will not.
 
 WHAT TO REPORT BACK
 - "title" is the story's own published headline, copied exactly. Do not rewrite, shorten or
