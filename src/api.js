@@ -748,8 +748,21 @@ ${full.paragraphs.join("\n\n")}`
       }
     }
 
-    if (!article) return { fail: "parse" };
-    if (article.error) return { fail: "error" };
+    if (!article) {
+      console.warn("[nt-attemptfail]", source?.id, full ? "전문" : "검색", chosen?.url, "parse");
+      return { fail: "parse" };
+    }
+    // 전문 모드에서는 검색이 없으므로 "찾지 못했다"는 error 선언이 성립하지
+    // 않습니다. 본문을 써 놓고 습관적으로 error 를 채우는 경우가 있어, 본문이
+    // 있으면 선언을 무시하고 진행합니다.
+    if (article.error && full && (article.paragraphs || []).length) {
+      console.warn("[nt-attemptfail]", source?.id, "전문 모드의 무의미한 error 선언 무시", chosen?.url);
+      article.error = "";
+    }
+    if (article.error) {
+      console.warn("[nt-attemptfail]", source?.id, full ? "전문" : "검색", chosen?.url, "error:", article.error);
+      return { fail: "error" };
+    }
     return { article, cand };
   }
 
