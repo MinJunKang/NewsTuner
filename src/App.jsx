@@ -443,6 +443,26 @@ export default function App() {
   const [tuning, setTuning] = useState(false);
   // 수신이 최대 1분까지 걸리므로, 멈춘 게 아니라는 것을 단계 문구로 보여줍니다.
   const [progress, setProgress] = useState("");
+
+  // 수신 대기 중 화면이 저절로 잠기면 iOS 가 페이지를 동결해 작업이 끊깁니다.
+  // 수신 동안만 화면 잠금을 붙잡습니다. 다른 앱으로 직접 나가는 것까지 막지는
+  // 못하고(그건 웹앱의 한계), 지원 안 되는 브라우저에서는 조용히 건너뜁니다.
+  const wakeRef = useRef(null);
+  const holdAwake = async () => {
+    try {
+      wakeRef.current = await navigator.wakeLock?.request("screen");
+    } catch {
+      /* 미지원·거부 시 그냥 진행 */
+    }
+  };
+  const releaseAwake = () => {
+    try {
+      wakeRef.current?.release();
+    } catch {
+      /* noop */
+    }
+    wakeRef.current = null;
+  };
   const [error, setError] = useState("");
 
   const [tab, setTab] = useState(() => {
@@ -506,6 +526,7 @@ export default function App() {
   const tuneIn = useCallback(
     async (story) => {
     setTuning(true);
+    holdAwake();
     setProgress("기사 찾는 중…");
     setError("");
     setSheet(null);
@@ -534,6 +555,7 @@ export default function App() {
       setError(e.message);
       logIssue("수신오류", `${field.id}/${source.id}`, e.message);
     } finally {
+      releaseAwake();
       setTuning(false);
       setProgress("");
     }
