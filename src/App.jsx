@@ -1344,7 +1344,7 @@ export default function App() {
                 autoComplete="off"
                 value={keys.proxy}
                 onChange={(e) => setKeys({ ...keys, proxy: e.target.value })}
-                placeholder="https://…workers.dev"
+                placeholder="https://…vercel.app/api"
               />
               <small>
                 넣으면 키를 기기에 두지 않고 프록시가 대신 호출합니다. 비워 두면 브라우저에서 직접

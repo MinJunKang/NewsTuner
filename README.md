@@ -156,7 +156,35 @@ public/                  아이콘, manifest, 서비스 워커
 worker/                  선택 사항. 키를 기기에 두지 않는 프록시
 ```
 
-## 부록 — 키를 기기에 두지 않으려면
+## 부록 A — Vercel 로 프록시 두기 (권장, 터미널 불필요)
+
+프록시를 두면 두 가지가 좋아집니다. API 키가 폰이 아니라 서버 환경변수에 살고,
+기사 링크가 실제로 열리는지(`/check`) 확인해 죽은 링크를 목록에서 미리 뺍니다.
+
+`api/` 폴더에 Vercel 함수가 이미 들어 있어, 하실 일은 클릭 몇 번입니다.
+
+1. [vercel.com](https://vercel.com) 에서 **GitHub 계정으로 가입** (카드 불필요)
+2. **Add New → Project** → 이 저장소 **Import**
+3. 설정은 기본값 그대로 두고 **Environment Variables** 에 두 개 추가
+   - `GEMINI_KEY` — Gemini API 키
+   - `SHARED_TOKEN` — 아무 긴 문자열 (남이 내 프록시를 쓰지 못하게 막는 비밀번호)
+4. **Deploy** → 끝나면 `https://<프로젝트>.vercel.app` 주소가 나옵니다
+
+앱 설정에는 이렇게 넣습니다.
+
+| 칸 | 값 |
+|---|---|
+| 프록시 주소 | `https://<프로젝트>.vercel.app/api` ← **뒤에 /api 필수** |
+| 프록시 토큰 | `SHARED_TOKEN` 과 같은 값 |
+
+이후에는 지금처럼 `git push` 만 하면 Vercel 이 함수까지 자동으로 다시 배포합니다.
+무료(Hobby) 한도는 월 100만 호출이라 개인 사용의 수백 배 여유가 있고, Hobby 는
+개인·비상업 용도 전용입니다.
+
+매체를 추가하면 `api/_shared.js` 의 `ALLOWED_HOSTS` 도 `src/App.jsx` 의 domain 과
+같게 고쳐야 합니다.
+
+## 부록 B — Cloudflare Workers 로 두기 (대안)
 
 `worker/index.js`를 Cloudflare Workers에 올리면 키가 폰이 아니라 Cloudflare에 저장됩니다.
 
