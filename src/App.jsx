@@ -75,6 +75,9 @@ const FIELDS = [
         window: "the last week", note: "일반 독자용 건강 보도" },
       { id: "scinews", length: "mid", label: "Science News", short: "SCINEWS", freq: "97.1",
         domain: "sciencenews.org",
+        // lite 가 이 매체의 기사 주소를 상습적으로 지어내는 것이 확인되어,
+        // 목록만 큰 모델로 만듭니다.
+        heavyList: true,
         window: "the last few days", note: "짧고 명확한 연구 뉴스, 매일 발행" },
     ],
   },

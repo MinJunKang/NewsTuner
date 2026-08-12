@@ -905,7 +905,11 @@ ${full.paragraphs.join("\n\n")}`
   // 주소이고 발행사 도메인 검사까지 통과한 것입니다. 그다음이 그라운딩 주소,
   // 마지막이 모델이 이번 응답에 적어 낸 주소입니다.
   article.url =
-    picked?.url || article.sources[0]?.uri || onDomain(article.url, source.domain) || "";
+    aliveUrl ||
+    article.sources[0]?.uri ||
+    picked?.url ||
+    onDomain(article.url, source.domain) ||
+    "";
 
   // 발행일도 목록 단계 값이 더 믿을 만합니다. 검색 결과에 붙어 오는 값입니다.
   if (picked?.published) article.published = picked.published;
@@ -1052,7 +1056,7 @@ Reply with JSON and nothing else:
   // 생각을 minimal 로 깎았더니 모델이 검색 도구를 집지 않고 기억으로 목록을
   // 만드는 일이 잦아졌습니다. 도구를 쓸지 말지도 생각의 일부라, 절약이 검색
   // 자체를 없애 버립니다. low 로 둡니다.
-  const listCall = (schema, level = "low", preface = "", model = MODELS.list) =>
+  const listCall = (schema, level = "low", preface = "", model = source.heavyList ? MODELS.news : MODELS.list) =>
     gemini({
       geminiKey,
       proxy,
