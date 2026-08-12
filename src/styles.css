@@ -876,6 +876,20 @@ a {
   font-size: 22px;
 }
 
+.speak {
+  margin-left: 8px;
+  padding: 2px 6px;
+  font-size: 14px;
+  line-height: 1;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+.speak:active {
+  border-color: var(--signal);
+}
+
 .sheet__close {
   font-family: var(--mono);
   font-size: 11px;

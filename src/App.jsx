@@ -352,6 +352,18 @@ const Chip = ({ on, children, ...rest }) => (
 
 const Spinner = ({ label }) => <p className="spinner">{label}</p>;
 
+// 기기에 내장된 음성 합성으로 읽어줍니다. API 호출이 없어 비용이 들지 않고
+// 오프라인에서도 됩니다. 사용자 탭에서 불러야 iOS 에서 소리가 납니다.
+const canSpeak = typeof window !== "undefined" && "speechSynthesis" in window;
+function speak(text) {
+  if (!canSpeak || !text) return;
+  window.speechSynthesis.cancel(); // 연타하면 겹치지 않고 새로 읽습니다
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = "en-US";
+  u.rate = 0.9; // 학습용이라 살짝 천천히
+  window.speechSynthesis.speak(u);
+}
+
 // 모델에게 마크다운을 쓰지 말라고 해도 가끔 **강조** 를 섞어 보내고, 그러면
 // 별표가 글자로 그대로 보입니다. HTML 로 해석하지 않고 React 요소로만 바꾸므로
 // 주입 위험은 없습니다.
@@ -1397,6 +1409,15 @@ export default function App() {
           <div className="sheet__head">
             <p className="sheet__term">
               {sheet.kind === "sentence" ? "문장 해석" : sheet.term}
+              {sheet.kind !== "sentence" && canSpeak && (
+                <button
+                  className="speak"
+                  onClick={() => speak(sheet.data?.base || sheet.term)}
+                  aria-label="발음 듣기"
+                >
+                  🔊
+                </button>
+              )}
             </p>
             <button className="sheet__close" onClick={closeSheet}>
               닫기 ✕
@@ -1450,7 +1471,18 @@ export default function App() {
               <p className="k-ko">{sheet.data.ko}</p>
               <p className="k-en">{sheet.data.en}</p>
               <p className="k-ctx">{sheet.data.inContext}</p>
-              <p className="k-ex">{sheet.data.example}</p>
+              <p className="k-ex">
+                {sheet.data.example}
+                {canSpeak && (
+                  <button
+                    className="speak"
+                    onClick={() => speak(sheet.data.example)}
+                    aria-label="예문 듣기"
+                  >
+                    🔊
+                  </button>
+                )}
+              </p>
               <p className="k-en">{sheet.data.exampleKo}</p>
               {sheet.data.related?.length > 0 && (
                 <p className="k-mono">{sheet.data.related.join(" · ")}</p>
