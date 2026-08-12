@@ -328,6 +328,7 @@ export async function fetchArticle({
   level,
   length,
   story, // 관련 기사 목록에서 고른 특정 기사. 없으면 새로 찾습니다.
+  exclude, // 최근에 읽은 기사 주소. 같은 글이 다시 나오지 않게 합니다.
 }) {
   const levelSpec = {
     easy: "CEFR B2. Natural news register, moderate sentence length.",
@@ -374,8 +375,14 @@ something unrelated is not. If ${source.label} published nothing on it in ${rece
   let listed = [];
   if (!picked) {
     try {
-      listed = await findStories({ geminiKey, proxy, proxyToken, source, topic, focus });
-      picked = listed[0];
+      listed = await findStories({ geminiKey, proxy, proxyToken, source, topic, focus, exclude });
+      // 항상 1번을 쓰면 조건이 같을 때 매번 같은 기사가 나옵니다. 상위 후보
+      // 안에서 무작위로 고릅니다. 키워드가 있을 때는 관련도 순서가 의미를
+      // 가지므로 범위를 좁게 잡습니다.
+      const pool = listed.slice(0, focus ? 3 : 5);
+      picked = pool[Math.floor(Math.random() * pool.length)];
+      // 고른 기사를 목록 맨 앞으로 보내야 나머지가 관련 기사가 됩니다.
+      listed = [picked, ...listed.filter((x) => x.url !== picked.url)];
     } catch {
       // 키워드를 주셨는데 목록이 비었다는 것은 그 주제의 기사가 없다는 뜻입니다.
       // 여기서 예전 경로로 넘어가면 무관한 기사를 써 오므로 그대로 알립니다.
@@ -386,69 +393,83 @@ something unrelated is not. If ${source.label} published nothing on it in ${rece
   }
 
   // 관련 기사에서 고른 경우에는 새로 찾지 말고 그 기사를 그대로 다룹니다.
+  // 기사는 목록 단계에서 이미 정해집니다. 그래서 이 프롬프트에는 "어느 기사를
+  // 고를지" 를 넣지 않습니다. 넣어 두면 정해진 기사를 두고 다른 것을 찾으라는
+  // 상반된 지시가 됩니다. 고르는 규칙은 목록을 못 받았을 때의 대체 경로에만 둡니다.
   const intro = picked
-    ? `Use Google Search to open this specific story published by ${source.label}:
+    ? `Open this specific story published by ${source.label} and report it:
 Title: ${picked.title}
 URL: ${picked.url}
-Report on that exact story, not a different one. Do not substitute a different article.
-Use search only to read this article. Other results about the same event are not sources
-for this piece.
-`
-    : `Use Google Search to find a real story published in ${recency} by ${source.label} on the topic: ${topic}.
 
-Run several searches with different wording before deciding. site:${source.domain} is one
-query worth trying, but do not rely on it alone — if it returns little, search normally by
-outlet name and topic. What matters is that the story you end up reporting was published on
-${source.domain}; another outlet's coverage of the same event does not count.
+This story is already chosen. Do not look for a different one and do not substitute another
+article. Use search only to read this page. Other results about the same event are not
+sources for this piece.`
+    : `Use Google Search to find a real story published in ${recency} by ${source.label} on
+the topic: ${topic}. Run several searches with different wording. site:${source.domain} is
+one query worth trying, but if it returns little, search normally by outlet name and topic.
+The story must be published on ${source.domain}; another outlet's coverage of the same event
+does not count.
 
-You must actually open search results and report from them. If you find nothing usable on
-${source.domain}, set "error" — never write the article from memory.
+Skip pages that are not articles — dashboards, tag and topic hubs, category pages, live
+blogs, galleries, video and podcast pages. Among what is left, take the one with the most
+substantial reporting. You must open search results and report from them: if you find nothing
+usable on ${source.domain}, set "error" rather than writing from memory.
 ${focusLine}`;
 
   const prompt = `${intro}
-Choosing which story to report
-- Discard pages that are not articles at all: election guides, results dashboards, topic or
-  tag hubs, category and section pages, live blogs, photo galleries, video pages and podcast
-  episode pages. You can usually tell from the title and the address. Move on to the next
-  candidate rather than reporting one of these.
-- Everything else is fair game. Prefer a story that shows a publication date and, where it
-  is shown, a reporter's or wire service's name — but do not reject a story just because the
-  search result did not display a byline. Most articles will not show you one.
-- Among the candidates left, prefer the one with the most substantial reporting rather than
-  the shortest or the most recent.
-- "error" is a last resort, not a first response. Use it only after you have run several
-  searches with different wording and still found no usable article. If you have any usable
-  article at all, report it.
 
-Then write YOUR OWN English article reporting that story.
+Write YOUR OWN English article reporting that story.
 
-Rules
-- Build the article from one source article — the one you opened. Other search results will
+SOURCE — what you may draw on
+- Build the article from one source article, the one you opened. Other search results will
   cover the same event; do not fold their details, figures or framing into it. If they say
-  something different, that is not yours to merge or reconcile. Report what your one source
-  says, and leave out what it does not cover.
-- Never copy sentences or distinctive phrases from the source. Re-report the facts in fresh wording.
+  something different, that is not yours to merge or reconcile.
+- Write only what your source reports. Do not add background, context, analysis or scene
+  detail out of your own knowledge, however likely it seems. If a fact is not in what you
+  read, it does not go in the article.
+- Never copy sentences or distinctive phrases from the source. Re-report the facts in fresh
+  wording.
 - Restructure freely. Do not follow the source's paragraph or sentence order, and do not
-  rebuild its sentences with words swapped out. Decide for yourself what to lead with and how
-  to arrange what you found.
-- The first paragraph must say what makes this news now: the specific thing that happened —
-  a ruling, a filing, a vote, a finding, an announcement — and who did it. Give its date
-  there too when the story supplies one; when it does not, say what happened without a date
-  rather than reaching for the article's own date. Do not open with general background on the
-  field. Background belongs after the reader knows what happened, and only as much as the
-  story itself supplies.
+  rebuild its sentences with words swapped out. Decide for yourself what to lead with.
+
+FACTS — what has to be exactly right
+- Copy the names of people, institutions, journals and instruments exactly as they appear.
+  Never reorder, translate, expand, abbreviate or reconstruct a name, and never attach a
+  person to a different institution than the one the story gives them.
+- Whenever one party does something to another — demands, refuses, sanctions, sues, rejects,
+  pays — name both parties and check which way round it goes before writing the sentence.
+  Reversing who demanded and who refused is a factual error, not a wording choice.
+- Attribute every claim, argument and figure to whoever actually made it. Never merge two
+  people's positions into one, and never move one source's argument to a different speaker.
+- The date on an article is when it was published, nothing more. Do not turn it into the date
+  of an event. If an article dated 7 August reports that researchers announced something,
+  that does not mean they announced it on 7 August — the announcement may be months older.
+  Give a date for an event only when the story states that date; otherwise write the sentence
+  without a date rather than reaching for the one you have.
+- Quote a person directly only if you found that exact quote. Never invent a quote or put
+  words in a named person's mouth. When unsure, paraphrase with attribution.
+- If the story shows genuine disagreement, report both positions, say who holds each, and
+  give the evidence each side cites — the figures, the studies, the documents — not just the
+  position it leads them to. Do not manufacture a disagreement the story does not show, and
+  do not dress a fringe claim up as an equal side.
+
+SHAPE — how the article is built
+- The first paragraph says what makes this news now: the specific thing that happened — a
+  ruling, a filing, a vote, a finding, an announcement — and who did it. Give its date there
+  when the story supplies one. Do not open with general background on the field; background
+  comes after the reader knows what happened.
 - Length: ${lengthSpec}. Use paragraphs of three to five sentences.
 - Every paragraph must carry something no earlier paragraph carried. Before writing each one,
-  ask what it adds. If it would make a point you already made, in different words, do not
+  ask what it adds. If it would make a point you already made in different words, do not
   write it — write a shorter article instead.
-- Ground each paragraph in something specific you actually found: a figure, a date, a named
-  person or organisation, a study, a concrete example. A paragraph that only asserts
-  something in general terms is the paragraph to cut.
-- Do not close by restating your opening. One ending is enough: say what happens next, and
-  stop.
-- The word count is a target, not a quota. If what you found does not support that much
-  material, write less. Never invent detail, speculate, or reproduce the source's own
-  sentences to reach the number. Everything must be in your own wording.
+- Ground each paragraph in something specific: a figure, a date, a named person or
+  organisation, a study, a concrete example. A paragraph that only asserts something in
+  general terms is the paragraph to cut.
+- Do not close by restating your opening. Say what happens next, and stop.
+- The word count is a target, not a quota. If the story does not support that much material,
+  write less. Never invent detail, speculate, or pad to reach the number.
+
+STYLE — how it should read
 - Reading level: ${levelSpec}
 - Write plain news English, the way an AP or NPR reporter writes: concrete nouns, active
   verbs, people doing things. If a wire reporter would not write a phrase, do not write it.
@@ -458,35 +479,15 @@ Rules
   still accurate.
 - Name the people involved and say what they do. Do not leave them as "officials",
   "researchers", "experts" or "critics" when the story gives you their names.
-- Factual and neutral. Only state what you actually found.
-- Write only what your sources report. Do not add background, context, analysis or scene
-  detail out of your own knowledge, however likely it seems. If a fact is not in what you
-  found, it does not go in the article.
-- Quote a person directly only if you actually found that exact quote in your sources.
-  Never invent a quote or put words in a named person's mouth. When unsure, paraphrase
-  with attribution instead.
-- Copy the names of people, institutions, journals and instruments exactly as they appear.
-  Never reorder, translate, expand, abbreviate or reconstruct a name, and never attach a
-  person to a different institution than the one the story gives them.
-- Whenever one party does something to another — demands, refuses, sanctions, sues, rejects,
-  pays — name both parties and check which way round it goes before you write the sentence.
-  Reversing who demanded and who refused is a factual error, not a wording choice.
-- Attribute every claim, argument and figure to whoever actually made it. Never merge two
-  people's positions into one, and never move one source's argument to a different speaker.
-  You are reading several search results; keep them apart.
-- The date attached to an article is when it was published, nothing more. Do not turn it into
-  the date of an event. If an article dated 7 August reports that researchers announced
-  something, that does not mean they announced it on 7 August — the announcement may be
-  months older. Give a date for an event only when the story itself states that date. When it
-  does not, write the sentence without a date rather than reaching for the one you have.
-- If your sources show genuine disagreement, report both positions and say who holds each,
-  and give the evidence each side actually cites — the figures, the studies, the documents —
-  not just the position it leads them to. Do not manufacture a disagreement your sources do
-  not show, and do not dress a fringe claim up as an equal side.
-- Every "url" in "related" must be an address you actually saw in your search results, on
-  ${source.label}'s own site. Never assemble, guess or complete an address, even if the
-  pattern looks obvious — a link that 404s is worse than no link. Drop the entry rather
-  than guess its address.
+
+OUTPUT
+- Plain text in every field. No markdown, no bold, no headings, and no citation markers such
+  as [1] or [2.1.1] — those are search artefacts, not part of an article.
+- "url" is the exact address of the story you reported. Never assemble, guess or complete an
+  address; leave it empty instead.
+- "related" holds up to 5 OTHER real stories you saw from ${source.label}, each with its own
+  published headline and a real address you actually saw. Exclude the story you reported.
+  Drop an entry rather than guess its address. If you saw none, use an empty array.
 
 Reply with JSON and nothing else. No markdown fences, no preamble.
 {
@@ -500,12 +501,7 @@ Reply with JSON and nothing else. No markdown fences, no preamble.
  "keywords": [{"word": "...", "ko": "...", "note": "기사 속 쓰임 한 줄"}],
  "related": [{"title": "original headline", "titleKo": "한국어 제목", "url": "canonical URL"}]
 }
-Exactly 5 keywords, chosen for a Korean learner of English.
-
-"related" holds up to 5 OTHER real stories you actually found from ${source.label} while
-searching, ordered by how closely they match what was asked for. Use each story's own
-headline, not one you wrote. Every entry needs a real canonical URL under the same rule as
-above. Exclude the story you just reported. If you found no others, use an empty array.`;
+Exactly 5 keywords, chosen for a Korean learner of English.`;
 
   const call = (schema) =>
     gemini({
@@ -680,7 +676,7 @@ const STORIES_SCHEMA = {
 };
 
 // 본문은 가져오지 않습니다. 무엇이 있는지 제목과 링크만 알려줍니다.
-export async function findStories({ geminiKey, proxy, proxyToken, source, topic, focus }) {
+export async function findStories({ geminiKey, proxy, proxyToken, source, topic, focus, exclude }) {
   // 키워드가 있으면 최신순이 아니라 관련순으로 찾아야 합니다. 발행 기간까지
   // 좁게 걸면 그 주제 기사가 그 며칠 안에 없다는 이유로 매번 빈손이 됩니다.
   const recency = source.window || "the last few days";
@@ -700,19 +696,28 @@ best-known or most-read pieces. Stay within ${recency}.`;
 
   const prompt = `Use Google Search on ${source.label}'s own site. ${goal}
 
-Put site:${source.domain} in your queries and run several with different wording. Every story
-you list must live on ${source.domain} — another outlet's coverage of the same event does not
-count.
+FINDING THEM
+- Put site:${source.domain} in your queries, and run several queries with different wording
+  rather than one. Different phrasings surface different articles.
+- Every story must live on ${source.domain}. Another outlet's coverage of the same event does
+  not count, however good it is.
+- Skip pages that are not articles: dashboards, tag and topic hubs, category and section
+  pages, live blogs, galleries, video and podcast pages. Everything else is fair game — do
+  not skip a story just because the result did not show a byline. Most will not.
 
-Skip pages that are not articles: election guides, results dashboards, topic or tag hubs,
-category and section pages, live blogs, photo galleries, video pages and podcast episode
-pages. Everything else is fair game — do not skip a story just because the search result did
-not display a byline.
+WHAT TO REPORT BACK
+- "title" is the story's own published headline, copied exactly. Do not rewrite, shorten or
+  translate it.
+- "url" is the article's own address as you saw it. Never assemble, guess or complete an
+  address — drop the story instead. A link that 404s is worse than a shorter list.
+- "published" is when the article was published, not when the events in it happened.
+- "summaryKo" is one short Korean sentence on what the story is about. Do not summarise the
+  body beyond that; you are not writing the article yet.
+- "relevance" and "matchesRequest" are your own judgement about the reader's topic. Answer
+  honestly — a story marked false is dropped, but a wrong true is what the reader ends up
+  reading.
 
-List up to 8 candidates. Use each story's own published headline exactly as it appears — do
-not rewrite or translate it in the "title" field. Every story needs a real canonical URL on
-the publisher's own site; drop any story you cannot link. Do not summarise the article body
-beyond one short Korean sentence saying what it is about.
+List up to 8 candidates.
 
 Reply with JSON and nothing else:
 {"stories": [{"title": "...", "url": "...", "published": "YYYY-MM-DD", "summaryKo": "...", "matchesRequest": true, "relevance": 0}]}`;
@@ -747,7 +752,10 @@ Reply with JSON and nothing else:
     .filter((s) => looksLikeArticleUrl(s.url))
     // 관련성 판단을 지시로만 두면 무시될 때 걸러낼 방법이 없습니다. 모델이
     // 항목마다 스스로 내린 판단을 받아 여기서 실제로 걸러냅니다.
-    .filter((s) => !focus || s.matchesRequest);
+    .filter((s) => !focus || s.matchesRequest)
+    // 최근에 읽은 기사는 뺍니다. 같은 조건으로 다시 눌렀을 때 같은 글이
+    // 나오지 않게 하는 가장 확실한 방법입니다.
+    .filter((s) => !exclude?.includes(s.url));
 
   // 정렬도 부탁만 하면 무시될 수 있으므로 코드에서 다시 세웁니다. 키워드가
   // 있으면 관련도 높은 순, 없으면 발행일 최신순입니다. 판단은 모델이 하지만

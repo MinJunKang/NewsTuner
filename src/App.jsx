@@ -390,6 +390,10 @@ export default function App() {
   // 금방 닳으므로, 이번 세션 동안 본 결과는 기억해 둡니다.
   const lookupCache = useRef(new Map());
 
+  // 최근에 읽은 기사 주소입니다. 같은 조건으로 다시 눌렀을 때 같은 글이
+  // 나오지 않도록, 검색 단계에서 이 목록을 빼고 고릅니다.
+  const [seen, setSeen] = useState(() => load("nt-seen", []));
+
   const [saveFailed, setSaveFailed] = useState(false);
   const [ioMsg, setIoMsg] = useState("");
   const fileRef = useRef(null);
@@ -410,6 +414,9 @@ export default function App() {
   useEffect(() => {
     save("nt-dark", dark);
   }, [dark]);
+  useEffect(() => {
+    save("nt-seen", seen);
+  }, [seen]);
   // 붙여넣은 글은 기기에 남기지 않습니다. 앱을 닫으면 사라집니다.
   useEffect(() => {
     if (article && !article.pasted) save("nt-article", article);
@@ -440,9 +447,12 @@ export default function App() {
         level: level.id,
         length: length.id,
         story,
+        exclude: seen,
       });
       setArticle(a);
       setPhrases([]);
+      // 60개까지만 남깁니다. 더 쌓이면 고를 후보가 없어집니다.
+      if (a.url) setSeen((prev) => [a.url, ...prev.filter((u) => u !== a.url)].slice(0, 60));
       setPanelOpen(false);
       setTab("read");
     } catch (e) {
@@ -451,7 +461,7 @@ export default function App() {
       setTuning(false);
     }
     },
-    [keys, source, field, level, length, focus]
+    [keys, source, field, level, length, focus, seen]
   );
 
   async function open(kind, term, key, fetcher) {
