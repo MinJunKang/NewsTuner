@@ -684,6 +684,13 @@ SHAPE — how the article is built
 ${quotaRule}
 
 STYLE — how it should read
+- First identify what the source IS. The plain-news register below applies to news
+  reporting. If the source is a satirical column, a humor piece or a voiced essay, match
+  ITS register instead: say what it is up front (a satirical column by X), keep its jokes
+  as jokes and its irony as irony, and follow the piece's own arc rather than forcing a
+  news lead onto it. A deliberately absurd example — a gag that breaks its own list — must
+  never be flattened into a neutral factual claim; converted that way, a joke reads as an
+  error. Satire re-reported as straight news has lost the story.
 - Reading level: ${levelSpec}
 - Write plain news English, the way an AP or NPR reporter writes: concrete nouns, active
   verbs, people doing things. If a wire reporter would not write a phrase, do not write it.
@@ -872,6 +879,18 @@ ${full.paragraphs.join("\n\n")}`
 
   // 발행일도 목록 단계 값이 더 믿을 만합니다. 검색 결과에 붙어 오는 값입니다.
   if (picked?.published) article.published = picked.published;
+
+  // 옛 경로에서 모델이 적어 낸 주소는 기억으로 지어낸 옛 형식일 수 있고,
+  // 도메인과 날짜 모양 검사는 그것을 못 잡습니다(실제로 404 링크가 표시된
+  // 사례가 있었습니다). 워커가 있으면 표시 전에 생존을 확인해 죽은 주소를
+  // 뗍니다.
+  if (!picked?.url && article.url && proxy) {
+    const deadOne = await deadUrls([article.url], proxy, proxyToken);
+    if (deadOne?.has(article.url)) {
+      logIssue("지어낸주소제거", source?.id, article.url);
+      article.url = "";
+    }
+  }
 
   // 주소가 끝내 비면 화면이 "출처를 확인하지 못했습니다" 경고를 띄웁니다.
   // 여기서 기사를 막지는 않습니다. 위험은 알리되 앱은 쓸 수 있어야 합니다.
