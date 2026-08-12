@@ -88,6 +88,19 @@ const FIELDS = [
     ],
   },
   {
+    id: "law",
+    label: "Law",
+    topic: "law, the courts and legal rulings",
+    sources: [
+      { id: "scotus", length: "mid", label: "SCOTUSblog", short: "SCOTUS", freq: "100.1",
+        domain: "scotusblog.com",
+        window: "the last week", note: "연방대법원 전문, 법률가가 일반 독자용으로 풀어 씀" },
+      { id: "tclaw", length: "mid", label: "The Conversation · Law", short: "TC LAW", freq: "100.7",
+        domain: "theconversation.com",
+        window: "the last week", note: "법학 교수의 해설, 배경 설명이 친절함" },
+    ],
+  },
+  {
     id: "culture",
     label: "Culture",
     topic: "culture, society, media or sports",
