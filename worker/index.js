@@ -29,7 +29,7 @@ const ALLOWED_HOSTS = new Set([
   "csmonitor.com",
   "quantamagazine.org",
   "technologyreview.com",
-  "statnews.com",
+  "sciencenews.org",
   "marketplace.org",
   "theatlantic.com",
   "theringer.com",

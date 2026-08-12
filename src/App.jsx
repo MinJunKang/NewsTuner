@@ -60,12 +60,12 @@ const FIELDS = [
     label: "Health",
     topic: "health, medicine or biotechnology",
     sources: [
-      { id: "stat", label: "STAT News", short: "STAT", freq: "96.3",
-        domain: "statnews.com",
-        window: "the last few days", note: "바이오·의학 저널리즘" },
-      { id: "shots", label: "NPR Shots", short: "SHOTS", freq: "97.1",
+      { id: "shots", label: "NPR Shots", short: "SHOTS", freq: "96.3",
         domain: "npr.org",
         window: "the last week", note: "일반 독자용 건강 보도" },
+      { id: "scinews", label: "Science News", short: "SCINEWS", freq: "97.1",
+        domain: "sciencenews.org",
+        window: "the last few days", note: "짧고 명확한 연구 뉴스, 매일 발행" },
     ],
   },
   {
