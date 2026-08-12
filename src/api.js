@@ -279,6 +279,10 @@ async function gemini({
   if (!res.ok) throw apiError(res, data);
   if (!data) throw new Error("응답을 읽지 못했습니다. 잠시 후 다시 시도하세요.");
 
+  // 실제 토큰 사용량입니다. 비용 추정이 아니라 실측을 보려면 브라우저 콘솔에서
+  // [nt-usage] 를 찾으면 됩니다. 화면이나 요청에는 아무 영향이 없습니다.
+  if (data.usageMetadata) console.debug("[nt-usage]", model, data.usageMetadata);
+
   const cand = data.candidates?.[0];
   // 잘린 응답은 JSON 이 깨져서 파싱 단계에서 엉뚱한 오류로 보입니다. 여기서 먼저 알립니다.
   if (cand?.finishReason === "MAX_TOKENS")
