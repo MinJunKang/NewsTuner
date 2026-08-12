@@ -169,7 +169,24 @@ const cleanEntry = (e) => {
 /* ---------------- text utils ---------------- */
 
 const splitSentences = (p) => p.match(/[^.!?]+[.!?]+["'’)\]]*\s*|[^.!?]+$/g) || [p];
-const cleanWord = (t) => t.replace(/^[^A-Za-z'’-]+|[^A-Za-z'’-]+$/g, "");
+// 악센트 라틴 글자(café, Beyoncé)까지 단어의 일부로 봅니다. A-Za-z 만 두면
+// 끝의 é 가 잘려 "caf" 를 사전에 찾게 됩니다.
+const cleanWord = (t) =>
+  t.replace(/^[^A-Za-z\u00C0-\u024F'’-]+|[^A-Za-z\u00C0-\u024F'’-]+$/g, "");
+
+// 키워드 카드에는 원문 문장이 없으므로, 본문에서 그 단어가 실제로 나오는
+// 문장을 찾아 사전에 넘깁니다. 한국어 쓰임 메모를 문장 자리에 넣으면 모델이
+// 그 메모를 원문 문장으로 알고 풀이합니다.
+const sentenceWith = (word, paragraphs) => {
+  const needle = word.toLowerCase();
+  for (const p of paragraphs || []) {
+    if (!p.toLowerCase().includes(needle)) continue;
+    for (const sent of splitSentences(p)) {
+      if (sent.toLowerCase().includes(needle)) return sent.trim();
+    }
+  }
+  return "";
+};
 
 // 찾아낸 표현이 이 문장의 몇 번째 토큰에 걸쳐 있는지 계산합니다.
 // 토큰은 공백까지 포함해 이어 붙이면 원문 문장이 되므로, 문자 위치로 맞춥니다.
@@ -464,7 +481,18 @@ export default function App() {
     [keys, source, field, level, length, focus, seen]
   );
 
+  // 응답이 돌아왔을 때 사용자가 이미 다른 것을 열었거나 닫았을 수 있습니다.
+  // 요청마다 번호를 매겨, 마지막 요청의 응답만 화면에 씁니다. 닫기도 번호를
+  // 올려서 닫은 시트가 뒤늦게 되살아나지 않게 합니다.
+  const sheetReq = useRef(0);
+
+  function closeSheet() {
+    sheetReq.current += 1;
+    setSheet(null);
+  }
+
   async function open(kind, term, key, fetcher) {
+    const id = ++sheetReq.current;
     const cached = lookupCache.current.get(key);
     if (cached) {
       setSheet({ kind, term, data: cached });
@@ -474,9 +502,9 @@ export default function App() {
     try {
       const data = await fetcher();
       lookupCache.current.set(key, data);
-      setSheet({ kind, term, data });
+      if (sheetReq.current === id) setSheet({ kind, term, data });
     } catch (e) {
-      setSheet({ kind, term, error: e.message });
+      if (sheetReq.current === id) setSheet({ kind, term, error: e.message });
     }
   }
 
@@ -531,11 +559,7 @@ export default function App() {
       return;
     }
     const [a, b] = ti < anchor.ti ? [ti, anchor.ti] : [anchor.ti, ti];
-    const phrase = toks
-      .slice(a, b + 1)
-      .join("")
-      .trim()
-      .replace(/^[^A-Za-z'’-]+|[^A-Za-z'’-]+$/g, "");
+    const phrase = cleanWord(toks.slice(a, b + 1).join("").trim());
     setAnchor(null);
     if (phrase) openPhrase(phrase, s);
   }
@@ -577,9 +601,14 @@ export default function App() {
         // 화면에 남은 오류 안내는 모델이 본 적 없는 말이라 대화 기록에서 뺍니다.
         messages: next.filter((m) => !m.error).map(({ role, content }) => ({ role, content })),
       });
-      setChat([...next, { role: "assistant", content: reply }]);
+      // 응답을 기다리는 사이 다른 기사를 받아 대화가 비워졌을 수 있습니다.
+      // 그때 이 응답을 붙이면 이전 기사의 대화가 새 기사 밑에 되살아납니다.
+      // 대화가 보낸 시점 그대로일 때만 붙입니다.
+      setChat((prev) => (prev === next ? [...next, { role: "assistant", content: reply }] : prev));
     } catch (e) {
-      setChat([...next, { role: "assistant", content: e.message, error: true }]);
+      setChat((prev) =>
+        prev === next ? [...next, { role: "assistant", content: e.message, error: true }] : prev
+      );
     } finally {
       setChatBusy(false);
     }
@@ -1148,7 +1177,12 @@ export default function App() {
                       {article.keywords.map((k, i) => (
                         <li key={i}>
                           <button
-                            onClick={() => openWord(k.word, k.note || article.paragraphs[0])}
+                            onClick={() =>
+                              openWord(
+                                k.word,
+                                sentenceWith(k.word, article.paragraphs) || article.paragraphs[0]
+                              )
+                            }
                           >
                             {k.word}
                           </button>
@@ -1359,7 +1393,7 @@ export default function App() {
             <p className="sheet__term">
               {sheet.kind === "sentence" ? "문장 해석" : sheet.term}
             </p>
-            <button className="sheet__close" onClick={() => setSheet(null)}>
+            <button className="sheet__close" onClick={closeSheet}>
               닫기 ✕
             </button>
           </div>

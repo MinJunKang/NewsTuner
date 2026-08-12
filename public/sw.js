@@ -1,6 +1,6 @@
 // v1 은 index.html 까지 캐시 우선으로 돌려주는 바람에, 한 번 설치한 기기가
 // 새로 배포한 버전을 영영 받지 못했습니다. 이름을 바꿔 옛 캐시를 버립니다.
-const CACHE = "news-tuner-v2";
+const CACHE = "news-tuner-v3";
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(["./", "./index.html"])));
@@ -41,10 +41,22 @@ self.addEventListener("fetch", (e) => {
     return;
   }
 
-  // 나머지는 파일 이름에 해시가 붙은 정적 자산이라 캐시 우선이 안전합니다.
+  // 캐시 우선은 파일 이름에 해시가 붙은 빌드 자산(/assets/)에만 안전합니다.
+  // manifest 나 아이콘, 개발 서버의 /src/ 모듈까지 캐시 우선으로 잡으면 파일을
+  // 바꿔도 옛 것이 영영 나옵니다. 그런 것은 네트워크 우선으로 받고, 오프라인일
+  // 때만 캐시로 돌립니다.
+  if (url.pathname.includes("/assets/")) {
+    e.respondWith(
+      caches
+        .match(e.request)
+        .then((hit) => hit || fetch(e.request).then((res) => putIfOk(e.request, res)))
+    );
+    return;
+  }
+
   e.respondWith(
-    caches
-      .match(e.request)
-      .then((hit) => hit || fetch(e.request).then((res) => putIfOk(e.request, res)))
+    fetch(e.request)
+      .then((res) => putIfOk(e.request, res))
+      .catch(() => caches.match(e.request))
   );
 });

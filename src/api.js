@@ -72,8 +72,11 @@ const stripMarkers = (t) =>
 
 // 기사가 아닌 페이지는 주소 모양만으로도 상당수 걸러집니다. 모델에게 판단을
 // 맡기는 대신 여기서 규칙으로 거릅니다. 실제 8개 매체 주소로 확인했습니다.
+// live 와 series 는 하이픈 슬러그를 달고 나와(/live/russia-ukraine-war-updates)
+// 날짜·슬러그 검사를 통과합니다. 확실한 허브 이름이므로 여기서 막습니다.
+// section 과 archive 는 기사 경로에도 쓰여(NPR, The Atlantic) 넣으면 안 됩니다.
 const HARD_HUB =
-  /^(tag|tags|topic|topics|hub|hubs|category|categories|search|author|authors|people|video|videos|watch|listen|podcast|podcasts|gallery|galleries|photos|photo|newsletter|newsletters|about|subscribe|donate)$/i;
+  /^(tag|tags|topic|topics|hub|hubs|live|series|collection|collections|index|category|categories|search|author|authors|people|video|videos|watch|listen|podcast|podcasts|gallery|galleries|photos|photo|newsletter|newsletters|about|subscribe|donate)$/i;
 
 export function looksLikeArticleUrl(u) {
   const safe = safeUrl(u);
@@ -123,6 +126,17 @@ async function deadUrls(urls, proxy, proxyToken) {
   }
 }
 
+// 응답이 실제 검색에 근거했는지와, 깨졌을 수 있는 JSON 을 조용히 받아 보는
+// 판별입니다. 목록과 집필 양쪽이 같은 판별을 써야 정책이 어긋나지 않습니다.
+const grounded = (c) => (c?.groundingMetadata?.groundingChunks || []).length > 0;
+const tryParse = (t) => {
+  try {
+    return extractJson(t);
+  } catch {
+    return null;
+  }
+};
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const findDetail = (details, type) =>
@@ -148,7 +162,11 @@ function apiError(res, body) {
     /API key not valid/i.test(detail);
 
   let message;
-  if (badKey) {
+  if (res.status === 401 && /토큰/.test(detail)) {
+    // 워커의 SHARED_TOKEN 불일치입니다. API 키 문제로 안내하면 사용자가
+    // 엉뚱한 칸을 고칩니다.
+    message = "프록시 토큰이 맞지 않습니다. 설정에서 프록시 토큰을 확인하세요.";
+  } else if (badKey) {
     message = "API 키가 거부되었습니다. 설정에서 키를 확인하세요.";
   } else if (res.status === 429) {
     const haystack = `${quotaId} ${detail}`;
@@ -533,15 +551,6 @@ Exactly 5 keywords, chosen for a Korean learner of English.`;
       schema,
     });
 
-  const grounded = (c) => (c?.groundingMetadata?.groundingChunks || []).length > 0;
-  const tryParse = (t) => {
-    try {
-      return extractJson(t);
-    } catch {
-      return null;
-    }
-  };
-
   // 후보 하나를 놓고 기사를 써 봅니다. 못 쓰면 이유를 돌려주고, 부르는 쪽이
   // 다음 후보로 넘어갑니다.
   async function attempt(chosen) {
@@ -581,7 +590,7 @@ Exactly 5 keywords, chosen for a Korean learner of English.`;
 
   // 1번 후보를 열지 못하는 일이 있습니다. 유료 장벽이 대표적입니다. 목록에
   // 다른 후보가 있는데 거기서 끝내면 아무것도 못 읽게 되므로 다음 후보로
-  // 넘어갑니다. 매번 새로 부르는 호출이라 세 번까지만 시도합니다.
+  // 넘어갑니다. 매번 새로 부르는 비싼 호출이라 두 번까지만 시도합니다.
   const attempts = picked ? (listed.length ? listed.slice(0, 2) : [picked]) : [null];
 
   let article = null;
@@ -633,10 +642,6 @@ Exactly 5 keywords, chosen for a Korean learner of English.`;
     .filter((c) => c && c.uri)
     .slice(0, 4);
 
-  // 그라운딩 주소가 1순위입니다. 구글이 실제로 열어본 것이라 존재가 보장됩니다.
-  // 그것이 비어 있을 때만 모델이 적어 낸 주소를 발행사 도메인 검사 후 씁니다.
-  // 도메인 검사는 지어낸 주소를 다 걸러내지는 못하지만, 아무 링크도 없는 것보다는
-  // 낫습니다. 둘 다 없을 때만 기사를 막습니다.
   // 목록 단계에서 고른 기사의 주소가 1순위입니다. 검색 결과에서 나온 실제
   // 주소이고 발행사 도메인 검사까지 통과한 것입니다. 그다음이 그라운딩 주소,
   // 마지막이 모델이 이번 응답에 적어 낸 주소입니다.
@@ -646,9 +651,8 @@ Exactly 5 keywords, chosen for a Korean learner of English.`;
   // 발행일도 목록 단계 값이 더 믿을 만합니다. 검색 결과에 붙어 오는 값입니다.
   if (picked?.published) article.published = picked.published;
 
-  // 여기서 기사를 막아 봤지만, 판단이 그라운딩 정보 하나에 걸려 있고 그 정보가
-  // 자주 빠져 와서 정상 기사까지 막혔습니다. 막는 대신 화면에 경고를 띄웁니다.
-  // 위험은 알리되 앱은 쓸 수 있어야 합니다.
+  // 주소가 끝내 비면 화면이 "출처를 확인하지 못했습니다" 경고를 띄웁니다.
+  // 여기서 기사를 막지는 않습니다. 위험은 알리되 앱은 쓸 수 있어야 합니다.
 
   // 목록을 받아 왔다면 나머지 후보가 곧 관련 기사입니다. 검색에서 나온 주소라
   // 모델이 이번 응답에 적어 낸 것보다 믿을 만합니다.
@@ -790,22 +794,17 @@ Reply with JSON and nothing else:
   // 있습니다("길게" 오류의 원인이던 그 조합입니다). 그래서 그라운딩이 없으면
   // 바로 실패로 보지 않고 스키마 없이 다시 불러 확인합니다. 그 경로는
   // 그라운딩이 보존되므로, 거기서도 없어야 지어낸 것으로 판단합니다.
-  const hasGrounding = (c) => (c?.groundingMetadata?.groundingChunks || []).length > 0;
   let { text, cand } = await listCall(STORIES_SCHEMA);
-  if (!hasGrounding(cand)) {
+  if (!grounded(cand)) {
     const plain = await listCall(undefined);
-    let parsedPlain = null;
-    try {
-      parsedPlain = extractJson(plain.text);
-    } catch {
-      parsedPlain = null;
-    }
-    if (hasGrounding(plain.cand) && parsedPlain) {
-      ({ text, cand } = plain);
-    } else if (!hasGrounding(plain.cand)) {
+    if (!grounded(plain.cand))
       throw new Error("검색이 실제로 수행되지 않았습니다. 다시 시도해 주세요.");
-    }
-    // 그라운딩은 있는데 파싱이 깨졌으면 첫 응답을 그대로 씁니다.
+    const parsedPlain = tryParse(plain.text);
+    // 재시도가 검색에는 근거했는데 파싱이 깨졌다면, 검색 안 한 첫 응답으로
+    // 돌아가면 안 됩니다. 그건 이 검사가 막으려는 바로 그 지어낸 목록입니다.
+    if (!parsedPlain)
+      throw new Error("모델 응답을 읽지 못했습니다. 다시 시도해 주세요.");
+    ({ text, cand } = plain);
   }
 
   const parsed = extractJson(text);
