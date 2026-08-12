@@ -549,6 +549,8 @@ should be rare.`
     : `Use Google Search to find a real story published in ${recency} by ${source.label} on
 the topic: ${topic}. Run several searches with different wording. site:${source.domain} is
 one query worth trying, but if it returns little, search normally by outlet name and topic.
+Prefer ${recency}, but if that window has nothing, take the most recent story you can find
+rather than declaring error — a low-volume section publishes slowly.
 The story must be published on ${source.domain}; another outlet's coverage of the same event
 does not count.
 
@@ -945,7 +947,9 @@ story is not a fallback.`
     : `List what ${source.label} has published most recently on ${topic}, newest first.
 
 Order by publication date, newest first. I want what they have just put out, not their
-best-known or most-read pieces. Stay within ${recency}.`;
+best-known or most-read pieces. Prefer ${recency}; if that window turns up almost nothing,
+reach further back rather than returning an empty list — for a low-volume section, an older
+story beats no story.`;
 
   const prompt = `Use Google Search on ${source.label}'s own site. ${goal}
 
