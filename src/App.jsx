@@ -158,14 +158,14 @@ const LENGTHS = [
 // 화면 어디에도 완성된 주소가 문자열로 존재하지 않습니다.
 // (직전 커밋 히스토리에는 평문이 남아 있어 완전한 은닉은 아닙니다.)
 // 바로 전송용 구글 폼. 만들어서 두 ID 를 채우면 "바로 전송" 버튼이 나타납니다.
-// 브라우저는 메일을 직접 발송할 수 없어(mailto 가 한계), 폼으로 무음 POST 하고
+// 브라우저는 메일을 직접 발송할 수 없으므로, 폼으로 무음 POST 하고
 // 폼의 "새 응답 이메일 알림"이 Gmail 로 알려주는 방식입니다. README 부록 참고.
 const REPORT_FORM = {
   formId: "1FAIpQLScYfITPzPO2iDUAqhUMk94PzzlHzWOgt-m4dQoVRuKPlRqyvg",
   entryId: "2050914000",
 };
 
-// 최근 기록을 전송용 한 줄 요약으로 만듭니다. mailto 와 폼 전송이 공유합니다.
+// 최근 기록을 전송용 한 줄 요약으로 만듭니다.
 function summarizeErrLog(maxChars) {
   let entries = [];
   try {
@@ -1521,7 +1521,7 @@ export default function App() {
                         );
                         setLogMsg("전송했습니다. 폼 응답함으로 들어갑니다.");
                       } catch {
-                        setLogMsg("전송하지 못했습니다. 메일로 보내기를 이용해 주세요.");
+                        setLogMsg("전송하지 못했습니다. 연결을 확인한 뒤 다시 시도하거나, 복사해서 직접 전해 주세요.");
                       }
                     }}
                   >
