@@ -129,6 +129,11 @@ async function deadUrls(urls, proxy, proxyToken) {
 // 응답이 실제 검색에 근거했는지와, 깨졌을 수 있는 JSON 을 조용히 받아 보는
 // 판별입니다. 목록과 집필 양쪽이 같은 판별을 써야 정책이 어긋나지 않습니다.
 const grounded = (c) => (c?.groundingMetadata?.groundingChunks || []).length > 0;
+// 검색이 실행됐다는 증거는 두 가지입니다. groundingChunks 는 문장에 붙는 인용이라
+// 산문에는 잘 붙지만 JSON 목록 출력에는 빠질 수 있습니다. webSearchQueries 는
+// 실행된 검색어 기록이라 출력 형태와 무관합니다. 둘 중 하나면 검색은 한 것입니다.
+const searched = (c) =>
+  grounded(c) || (c?.groundingMetadata?.webSearchQueries || []).length > 0;
 const tryParse = (t) => {
   try {
     return extractJson(t);
@@ -819,14 +824,14 @@ Reply with JSON and nothing else:
   // 바로 실패로 보지 않고 스키마 없이 다시 불러 확인합니다. 그 경로는
   // 그라운딩이 보존되므로, 거기서도 없어야 지어낸 것으로 판단합니다.
   let { text, cand } = await listCall(STORIES_SCHEMA);
-  if (!grounded(cand)) {
+  if (!searched(cand)) {
     const plain = await listCall(
       undefined,
       "medium",
       "Your previous attempt answered from memory without running Google Search. That is " +
         "not acceptable: every story must come from an actual search you run now.\n\n"
     );
-    if (!grounded(plain.cand))
+    if (!searched(plain.cand))
       throw new Error("검색이 실제로 수행되지 않았습니다. 다시 시도해 주세요.");
     const parsedPlain = tryParse(plain.text);
     // 재시도가 검색에는 근거했는데 파싱이 깨졌다면, 검색 안 한 첫 응답으로
