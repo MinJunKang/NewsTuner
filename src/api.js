@@ -604,9 +604,12 @@ SOURCE — what you may draw on
   rebuild its sentences with words swapped out. Decide for yourself what to lead with.
 
 FACTS — what has to be exactly right
-- Copy the names of people, institutions, journals and instruments exactly as they appear.
-  Never reorder, translate, expand, abbreviate or reconstruct a name, and never attach a
-  person to a different institution than the one the story gives them.
+- Copy the names of people, institutions, journals and instruments exactly as they appear,
+  accents and diacritics included — Börk, not Bork. Never reorder, translate, expand,
+  abbreviate or reconstruct a name, and never attach a person to a different institution
+  than the one the story gives them.
+- Copy figures exactly as the source states them. "50 years" must not soften into "more than
+  40 years"; a number the source commits to is not yours to round or hedge.
 - Whenever one party does something to another — demands, refuses, sanctions, sues, rejects,
   pays — name both parties and check which way round it goes before writing the sentence.
   Reversing who demanded and who refused is a factual error, not a wording choice.
@@ -624,6 +627,9 @@ FACTS — what has to be exactly right
 - Keep the source's degree of certainty exactly. If researchers are "considering" or
   "wondering about" something, do not upgrade it to "developing" or "building"; a "may" or
   "could" must not become a "will". Firming up a hedge is a factual error.
+- The same in the other direction: what has already happened must not slide into the future
+  tense. Lawsuits that were filed are not lawsuits that "are expected"; a completed decision
+  is not "planned". Demoting a done fact to a forecast is a factual error too.
 - If the story shows genuine disagreement, report both positions, say who holds each, and
   give the evidence each side cites — the figures, the studies, the documents — not just the
   position it leads them to. Do not manufacture a disagreement the story does not show, and
@@ -652,6 +658,11 @@ SHAPE — how the article is built
 - If the headline joins ideas with "or", "and", "but" or "vs", every element it names must
   appear in your article. A piece titled "Pain or Pleasure" that never mentions pleasure has
   failed, whatever else it got right.
+- If the headline poses a question or stakes a claim — "why X", "how Y", "X won't hold up" —
+  answering it IS the assignment. At least half your paragraphs must deliver the source's own
+  answer: the named cases, laws, filings, actors and mechanisms it cites. "Experts think it
+  is vulnerable" is a one-line nod, not an answer; which law, which provision, violated how —
+  that is where the information lives.
 - Every paragraph must carry something no earlier paragraph carried. Before writing each one,
   ask what it adds. If it would make a point you already made in different words, do not
   write it — write a shorter article instead.
