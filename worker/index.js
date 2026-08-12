@@ -20,6 +20,52 @@ const ALLOWED_MODELS = new Set([
   "gemini-3.5-flash-lite",
 ]);
 
+// /check 로 아무 주소나 받으면 이 워커가 남의 서버를 두드리는 도구가 됩니다.
+// 앱이 쓰는 매체만 받습니다. src/App.jsx 의 domain 값과 같게 유지하세요.
+const ALLOWED_HOSTS = new Set([
+  "npr.org",
+  "apnews.com",
+  "pbs.org",
+  "csmonitor.com",
+  "quantamagazine.org",
+  "technologyreview.com",
+  "statnews.com",
+  "marketplace.org",
+  "theatlantic.com",
+  "theringer.com",
+  "smithsonianmag.com",
+  "hyperallergic.com",
+]);
+
+const allowedHost = (u) => {
+  try {
+    const { protocol, hostname } = new URL(u);
+    if (protocol !== "https:" && protocol !== "http:") return false;
+    const host = hostname.replace(/^www\./, "");
+    return [...ALLOWED_HOSTS].some((d) => host === d || host.endsWith(`.${d}`));
+  } catch {
+    return false;
+  }
+};
+
+// 링크가 살아 있는지는 실제로 불러 봐야 압니다. 다만 뉴스 사이트는 데이터센터
+// IP 를 봇으로 보고 403 을 주는 일이 흔합니다. 그것을 죽은 링크로 처리하면
+// 멀쩡한 기사를 버리게 되므로, 404 와 410 만 확실한 사망으로 봅니다.
+async function isDead(url) {
+  const opts = { redirect: "follow", signal: AbortSignal.timeout(6000) };
+  try {
+    let res = await fetch(url, { method: "HEAD", ...opts });
+    // HEAD 를 막아 둔 곳이 있어 그때만 GET 으로 한 바이트만 받아 봅니다.
+    if (res.status === 405 || res.status === 501) {
+      res = await fetch(url, { method: "GET", headers: { Range: "bytes=0-0" }, ...opts });
+    }
+    return res.status === 404 || res.status === 410;
+  } catch {
+    // 시간 초과나 네트워크 오류는 죽었다는 근거가 못 됩니다.
+    return false;
+  }
+}
+
 const cors = {
   "Access-Control-Allow-Origin": ALLOW_ORIGIN,
   "Access-Control-Allow-Headers": "Content-Type, X-App-Token",
@@ -35,6 +81,19 @@ export default {
     // 공개 URL이므로 남이 내 크레딧을 쓰지 못하게 막습니다.
     if (env.SHARED_TOKEN && request.headers.get("X-App-Token") !== env.SHARED_TOKEN) {
       return json({ error: { message: "토큰이 맞지 않습니다." } }, 401);
+    }
+
+    // /check — 링크가 살아 있는지 확인합니다. 확실히 죽은 것만 돌려줍니다.
+    if (new URL(request.url).pathname.endsWith("/check")) {
+      let urls = [];
+      try {
+        urls = JSON.parse(await request.text())?.urls || [];
+      } catch {
+        return json({ error: { message: "urls 를 읽지 못했습니다." } }, 400);
+      }
+      const targets = urls.filter((u) => typeof u === "string" && allowedHost(u)).slice(0, 12);
+      const flags = await Promise.all(targets.map(isDead));
+      return json({ dead: targets.filter((_, i) => flags[i]) }, 200);
     }
 
     // /gemini/<모델>
