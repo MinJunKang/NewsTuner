@@ -126,7 +126,7 @@ const LENGTHS = [
 
 const TABS = [
   ["read", "읽기"],
-  ["talk", "묻기"],
+  ["talk", "질의응답"],
   ["vocab", "단어장"],
   ["set", "설정"],
 ];

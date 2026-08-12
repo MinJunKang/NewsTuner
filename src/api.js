@@ -400,13 +400,17 @@ something unrelated is not. If ${source.label} published nothing on it in ${rece
   // 넘어가야 하는데, 프롬프트를 한 번만 만들면 그럴 수가 없습니다.
   const buildPrompt = (chosen) => {
     const intro = chosen
-      ? `Open this specific story published by ${source.label} and report it:
-Title: ${chosen.title}
-URL: ${chosen.url}
+      ? `Report this specific story, published by ${source.label}:
+Headline: ${chosen.title}
+Address: ${chosen.url}
 
-This story is already chosen. Do not look for a different one and do not substitute another
-article. Use search only to read this page. Other results about the same event are not
-sources for this piece.`
+Search for that headline on ${source.domain} to read the story. Search is how you reach it —
+you cannot simply open the address.
+
+This story is already chosen. Do not pick a different one, and do not treat other results
+about the same event as sources for this piece. It came from a real search result, so it
+exists: report it. Set "error" only if you can find no trace of this story at all, which
+should be rare.`
     : `Use Google Search to find a real story published in ${recency} by ${source.label} on
 the topic: ${topic}. Run several searches with different wording. site:${source.domain} is
 one query worth trying, but if it returns little, search normally by outlet name and topic.
