@@ -396,10 +396,13 @@ something unrelated is not. If ${source.label} published nothing on it in ${rece
   // 기사는 목록 단계에서 이미 정해집니다. 그래서 이 프롬프트에는 "어느 기사를
   // 고를지" 를 넣지 않습니다. 넣어 두면 정해진 기사를 두고 다른 것을 찾으라는
   // 상반된 지시가 됩니다. 고르는 규칙은 목록을 못 받았을 때의 대체 경로에만 둡니다.
-  const intro = picked
-    ? `Open this specific story published by ${source.label} and report it:
-Title: ${picked.title}
-URL: ${picked.url}
+  // 프롬프트를 후보마다 다시 만듭니다. 1번 후보를 열지 못하면 다음 후보로
+  // 넘어가야 하는데, 프롬프트를 한 번만 만들면 그럴 수가 없습니다.
+  const buildPrompt = (chosen) => {
+    const intro = chosen
+      ? `Open this specific story published by ${source.label} and report it:
+Title: ${chosen.title}
+URL: ${chosen.url}
 
 This story is already chosen. Do not look for a different one and do not substitute another
 article. Use search only to read this page. Other results about the same event are not
@@ -415,8 +418,7 @@ blogs, galleries, video and podcast pages. Among what is left, take the one with
 substantial reporting. You must open search results and report from them: if you find nothing
 usable on ${source.domain}, set "error" rather than writing from memory.
 ${focusLine}`;
-
-  const prompt = `${intro}
+    return `${intro}
 
 Write YOUR OWN English article reporting that story.
 
@@ -502,8 +504,9 @@ Reply with JSON and nothing else. No markdown fences, no preamble.
  "related": [{"title": "original headline", "titleKo": "한국어 제목", "url": "canonical URL"}]
 }
 Exactly 5 keywords, chosen for a Korean learner of English.`;
+  };
 
-  const call = (schema) =>
+  const call = (promptText, schema) =>
     gemini({
       geminiKey,
       proxy,
@@ -512,14 +515,11 @@ Exactly 5 keywords, chosen for a Korean learner of English.`;
       // 기본값은 medium 입니다. 생각 토큰은 출력 단가로 과금되고 이 호출이 가장
       // 비싸므로 low 로 낮춥니다. minimal 까지 내리면 검색 결과 종합이 부실해집니다.
       thinkingLevel: "low",
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      contents: [{ role: "user", parts: [{ text: promptText }] }],
       tools: [{ google_search: {} }],
       schema,
     });
 
-  // 검색 그라운딩과 스키마를 함께 쓰는 것은 아직 미리보기 단계라, 거부당하면
-  // 스키마 없이 한 번 더 시도합니다. 프롬프트에 형식이 그대로 적혀 있어
-  // 그 경로로도 동작합니다.
   const grounded = (c) => (c?.groundingMetadata?.groundingChunks || []).length > 0;
   const tryParse = (t) => {
     try {
@@ -529,39 +529,73 @@ Exactly 5 keywords, chosen for a Korean learner of English.`;
     }
   };
 
-  let text, cand;
-  try {
-    ({ text, cand } = await call(ARTICLE_SCHEMA));
-  } catch (e) {
-    if (e.status !== 400 || !/schema|response_?format/i.test(e.message)) throw e;
-    ({ text, cand } = await call(undefined));
-  }
-  let article = tryParse(text);
+  // 후보 하나를 놓고 기사를 써 봅니다. 못 쓰면 이유를 돌려주고, 부르는 쪽이
+  // 다음 후보로 넘어갑니다.
+  async function attempt(chosen) {
+    const promptText = buildPrompt(chosen);
 
-  // 스키마와 검색 그라운딩을 함께 쓰는 것은 아직 미리보기라, 긴 글에서 그라운딩
-  // 정보가 빠져 오는 경우가 있습니다. 출처가 없으면 기사를 막게 되어 있으므로,
-  // 스키마 없이 한 번 더 불러 봅니다.
-  //
-  // 다만 스키마를 빼면 형식 보장이 사라져, 긴 본문에 따옴표가 섞이면 JSON 이
-  // 깨집니다. 그래서 재시도 결과는 파싱에 성공하고 출처까지 있을 때만 씁니다.
-  // 그러지 않으면 멀쩡한 첫 응답을 깨진 재시도로 덮어쓰게 됩니다.
-  if (!grounded(cand)) {
+    // 검색 그라운딩과 스키마를 함께 쓰는 것은 아직 미리보기라, 거부당하면
+    // 스키마 없이 한 번 더 시도합니다. 프롬프트에 형식이 적혀 있어 동작합니다.
+    let text, cand;
     try {
-      const plain = await call(undefined);
-      const parsed = tryParse(plain.text);
-      if (parsed && grounded(plain.cand)) {
-        article = parsed;
-        cand = plain.cand;
-      }
-    } catch {
-      /* 처음 응답을 그대로 씁니다 */
+      ({ text, cand } = await call(promptText, ARTICLE_SCHEMA));
+    } catch (e) {
+      if (e.status !== 400 || !/schema|response_?format/i.test(e.message)) throw e;
+      ({ text, cand } = await call(promptText, undefined));
     }
+    let article = tryParse(text);
+
+    // 그라운딩을 되살리려는 재시도는 호출을 두 배로 늘립니다. 목록에서 고른
+    // 기사는 주소를 이미 들고 있으므로 그라운딩이 없어도 아쉬울 것이 없어,
+    // 후보 없이 한 번에 찾아 쓰는 경로에서만 재시도합니다.
+    if (!chosen && !grounded(cand)) {
+      try {
+        const plain = await call(promptText, undefined);
+        const parsed = tryParse(plain.text);
+        if (parsed && grounded(plain.cand)) {
+          article = parsed;
+          cand = plain.cand;
+        }
+      } catch {
+        /* 처음 응답을 그대로 씁니다 */
+      }
+    }
+
+    if (!article) return { fail: "parse" };
+    if (article.error) return { fail: "error" };
+    return { article, cand };
   }
 
-  if (!article) throw new Error("모델 응답을 읽지 못했습니다. 다시 시도해 주세요.");
+  // 1번 후보를 열지 못하는 일이 있습니다. 유료 장벽이 대표적입니다. 목록에
+  // 다른 후보가 있는데 거기서 끝내면 아무것도 못 읽게 되므로 다음 후보로
+  // 넘어갑니다. 매번 새로 부르는 호출이라 세 번까지만 시도합니다.
+  const attempts = picked ? (listed.length ? listed.slice(0, 2) : [picked]) : [null];
 
-  if (article.error)
-    throw new Error("조건에 맞는 기사를 찾지 못했습니다. 매체나 조건을 바꿔 보세요.");
+  let article = null;
+  let cand = null;
+  let lastFail = "error";
+  for (const chosen of attempts) {
+    const r = await attempt(chosen);
+    if (r.article) {
+      article = r.article;
+      cand = r.cand;
+      // 실제로 쓴 기사를 기준으로 주소와 관련 기사를 정합니다.
+      if (chosen) {
+        picked = chosen;
+        listed = [chosen, ...listed.filter((x) => x.url !== chosen.url)];
+      }
+      break;
+    }
+    lastFail = r.fail;
+  }
+
+  if (!article) {
+    throw new Error(
+      lastFail === "parse"
+        ? "모델 응답을 읽지 못했습니다. 다시 시도해 주세요."
+        : "기사를 열지 못했습니다. 다시 시도하거나 매체를 바꿔 보세요."
+    );
+  }
 
   // 화면은 paragraphs 를 그대로 렌더링하므로, 여기서 모양을 보장하지 않으면
   // 모델이 형식을 어겼을 때 렌더링 도중 터져 빈 화면이 됩니다.
@@ -727,7 +761,9 @@ Reply with JSON and nothing else:
     proxy,
     proxyToken,
     model: MODELS.news,
-    thinkingLevel: "low",
+    // 목록 만들기는 검색 결과에서 제목과 주소를 추리는 일이라 깊이 생각할
+    // 필요가 없습니다. 생각 토큰은 출력 단가로 과금됩니다.
+    thinkingLevel: "minimal",
     maxOutputTokens: 2500,
     contents: [{ role: "user", parts: [{ text: prompt }] }],
     tools: [{ google_search: {} }],
