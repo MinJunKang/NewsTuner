@@ -746,19 +746,31 @@ List up to 8 candidates.
 Reply with JSON and nothing else:
 {"stories": [{"title": "...", "url": "...", "published": "YYYY-MM-DD", "summaryKo": "...", "matchesRequest": true, "relevance": 0}]}`;
 
-  const { text } = await gemini({
-    geminiKey,
-    proxy,
-    proxyToken,
-    model: MODELS.news,
-    // 목록 만들기는 검색 결과에서 제목과 주소를 추리는 일이라 깊이 생각할
-    // 필요가 없습니다. 생각 토큰은 출력 단가로 과금됩니다.
-    thinkingLevel: "minimal",
-    maxOutputTokens: 2500,
-    contents: [{ role: "user", parts: [{ text: prompt }] }],
-    tools: [{ google_search: {} }],
-    schema: STORIES_SCHEMA,
-  });
+  const listCall = () =>
+    gemini({
+      geminiKey,
+      proxy,
+      proxyToken,
+      model: MODELS.news,
+      // 목록 만들기는 검색 결과에서 제목과 주소를 추리는 일이라 깊이 생각할
+      // 필요가 없습니다. 생각 토큰은 출력 단가로 과금됩니다.
+      thinkingLevel: "minimal",
+      maxOutputTokens: 2500,
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      tools: [{ google_search: {} }],
+      schema: STORIES_SCHEMA,
+    });
+
+  // 허위 기사가 목록에 들어오는 경로는 모델이 검색을 실제로 하지 않고 기억으로
+  // 목록을 지어내는 것입니다. 그 경우 응답에 그라운딩 정보가 없으므로, 그것을
+  // 실제 검색의 증거로 요구합니다. 없으면 한 번 다시 부르고, 그래도 없으면
+  // 지어낸 목록을 쓰는 대신 실패로 처리합니다.
+  let { text, cand } = await listCall();
+  if (!(cand?.groundingMetadata?.groundingChunks || []).length) {
+    ({ text, cand } = await listCall());
+    if (!(cand?.groundingMetadata?.groundingChunks || []).length)
+      throw new Error("검색이 실제로 수행되지 않았습니다. 다시 시도해 주세요.");
+  }
 
   const parsed = extractJson(text);
   // 8건을 받아 거른 뒤 5건만 남깁니다. 여유를 두지 않으면 주소나 관련성 검사에서
