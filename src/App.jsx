@@ -222,26 +222,26 @@ const NO_MARKS = new Map();
 
 /* ---------------- 붙여넣기 본문 추리기 ---------------- */
 
-// 페이지를 통째로 복사하면 메뉴, 공유 버튼, 관련 기사, 푸터가 함께 딸려옵니다.
-// 아래 말로 시작하는 줄은 본문이 아닙니다.
-const BOILER =
-  /^(share|tweet|save|print|copy link|advertisement|sponsored|subscribe|sign ?in|log ?in|menu|search|skip to|read more|related|more from|most popular|newsletter|follow|comments?|photo|image|credit|getty|copyright|©|all rights reserved|terms|privacy|cookie|home|sections?|watch|listen|live|donate|support)\b/i;
+// 페이지를 통째로 복사하면 메뉴, 공유 버튼, 캡션, 푸터가 함께 딸려옵니다.
+// 처음에는 이 단어로 시작하는 줄을 길이와 무관하게 버렸는데, "Home prices
+// rose..." "Search teams recovered..." 같은 멀쩡한 문장까지 잘려 나갔습니다.
+// 메뉴와 캡션은 짧다는 성질을 함께 써서, 여섯 단어 이하일 때만 크롬으로 봅니다.
+const CHROME_WORD =
+  /^(share|tweet|save|print|copy link|subscribe|sign ?in|log ?in|menu|search|skip to|read more|related|more from|most popular|follow|comments?|photo|image|credit|getty|copyright|©|advertisement|sponsored|newsletter|watch|listen|live|donate|support|home|sections?|terms|privacy|cookie)\b/i;
 
-// 본문 중간에 끼는 광고와 구독 권유는 완결된 문장이라 길이나 마침표로는
-// 걸러지지 않습니다. 줄 맨 앞이 아니라 어디에 있든 잡아야 합니다.
-// 기사 본문에도 나올 법한 흔한 낱말(offer, deal, free) 대신, 광고에서만
-// 쓰이는 표현을 골랐습니다. 본문이 잘려나가는 쪽이 더 나쁜 실패입니다.
+// 줄 어디에 있든 광고인 문구들. 여기에는 본문에 나올 수 있는 낱말(newsletter,
+// advertisement 단독)을 두지 않습니다. "newsletter business" 같은 보도가
+// 잘려 나갑니다. 그런 낱말은 위의 짧은 줄 검사가 잡습니다.
 const PROMO =
-  /sign up for (our|the|a)|subscribe (to|now|today|for)|delivered to your inbox|to your inbox|newsletter|advertisement|\bsponsored\b|promoted content|partner content|click here|tap here|follow us on|download (our|the) app|get the app|free trial|\d+% off|unlimited access|support (our|independent) journalism|become a (member|subscriber)|make a (gift|donation)|all rights reserved|terms of (use|service)|privacy policy|cookie (policy|settings|preferences)|we use cookies|enable javascript|your browser (does not|doesn't) support|share this (story|article)/i;
+  /sign up for (our|the|a)|subscribe (to|now|today|for)|delivered to your inbox|promoted content|partner content|click here|tap here|follow us on|download (our|the) app|get the app|free trial|\d+% off|unlimited access|support (our|independent) journalism|become a (member|subscriber)|make a (gift|donation)|all rights reserved|terms of (use|service)|privacy policy|cookie (policy|settings|preferences)|we use cookies|enable javascript|your browser (does not|doesn't) support|share this (story|article)/i;
 
 const wordsIn = (l) => l.split(/\s+/).filter(Boolean).length;
+const endsSentence = (l) => /[.!?]["'’)\]]?$/.test(l);
+const isChrome = (l) => (CHROME_WORD.test(l) && wordsIn(l) <= 6) || PROMO.test(l);
 
-// 문장처럼 생긴 줄만 본문으로 봅니다. 메뉴 항목은 짧고 마침표가 없습니다.
+// 문장처럼 생긴 줄만 본문 구간의 기둥으로 삼습니다.
 const looksLikeBody = (l) =>
-  !BOILER.test(l) &&
-  !PROMO.test(l) &&
-  wordsIn(l) >= 12 &&
-  (/[.!?]["'’)\]]?$/.test(l) || wordsIn(l) >= 25);
+  !isChrome(l) && wordsIn(l) >= 12 && (endsSentence(l) || wordsIn(l) >= 25);
 
 function extractBody(raw) {
   const lines = raw
@@ -253,10 +253,11 @@ function extractBody(raw) {
   const flags = lines.map(looksLikeBody);
   if (!flags.includes(true)) return null;
 
-  // 처음부터 끝까지 한 덩어리로 잡으면, 하단 관련 기사 요약문도 문장처럼
-  // 생겨서 끝 지점이 거기까지 밀려납니다. 본문처럼 보이는 줄이 이어지는
-  // 구간을 여러 개로 나눈 뒤, 가장 두꺼운 구간 하나만 씁니다. 관련 기사
-  // 묶음은 본문과 떨어진 별도 덩어리로 잡히고, 본문보다 얇습니다.
+  // 본문처럼 보이는 줄이 이어지는 구간을 나눠 가장 두꺼운 것을 씁니다. 하단
+  // 관련 기사 요약이 문장처럼 생겨도 별도의 얇은 구간이 되어 탈락합니다.
+  // 캡션이나 광고 한두 줄로 구간을 끊으면 기사 후반부가 통째로 사라지므로,
+  // 본문 아닌 줄 셋까지는 같은 구간으로 참습니다. 푸터 크롬은 여럿이 연달아
+  // 나와 어차피 끊깁니다.
   const runs = [];
   let cur = null;
   let gap = 0;
@@ -265,14 +266,10 @@ function extractBody(raw) {
       if (!cur) cur = { start: i, end: i };
       cur.end = i;
       gap = 0;
-    } else if (cur) {
-      // 상투 문구(관련 기사, 뉴스레터, 구독 안내)는 대개 본문 끝을 알립니다.
-      // 사진 설명처럼 본문 중간에 낄 수도 있어, 빈 줄 두 개까지는 참습니다.
-      if (BOILER.test(lines[i]) || ++gap > 2) {
-        runs.push(cur);
-        cur = null;
-        gap = 0;
-      }
+    } else if (cur && ++gap > 3) {
+      runs.push(cur);
+      cur = null;
+      gap = 0;
     }
   }
   if (cur) runs.push(cur);
@@ -288,18 +285,21 @@ function extractBody(raw) {
     }
   }
 
-  // 고른 구간 안에서도, 중간에 끼어든 짧은 메뉴 줄은 걸러냅니다.
+  // 고른 구간 안에서는 관대하게 남깁니다. 짧아도 마침표가 있으면 "No," she
+  // said. 같은 인용 문단입니다. 크롬만 뺍니다.
   const paragraphs = lines
     .slice(best.start, best.end + 1)
     .filter(
-      (l, i) => flags[best.start + i] || (!BOILER.test(l) && !PROMO.test(l) && wordsIn(l) >= 8)
+      (l, i) =>
+        flags[best.start + i] ||
+        (!isChrome(l) && (wordsIn(l) >= 8 || (wordsIn(l) >= 2 && endsSentence(l))))
     );
 
   // 제목은 본문 바로 위에서 찾습니다. 너무 멀리 올라가면 메뉴를 집습니다.
   let title = "";
   for (let i = best.start - 1; i >= 0 && i >= best.start - 6; i--) {
     const l = lines[i];
-    if (!BOILER.test(l) && !PROMO.test(l) && wordsIn(l) >= 3 && wordsIn(l) <= 20) {
+    if (!isChrome(l) && wordsIn(l) >= 3 && wordsIn(l) <= 20) {
       title = l;
       break;
     }
