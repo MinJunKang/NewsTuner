@@ -468,7 +468,10 @@ Headline: ${chosen.title}
 Address: ${chosen.url}
 
 Search for that headline on ${source.domain} to read the story. Search is how you reach it —
-you cannot simply open the address.
+you cannot simply open the address. One search shows you only fragments of the story, so run
+several: the full headline, then distinctive phrases from it, each with site:${source.domain}.
+Different queries surface different passages of the same article. Gather as much of THIS
+story as you can before you start writing.
 
 This story is already chosen. Do not pick a different one, and do not treat other results
 about the same event as sources for this piece. It came from a real search result, so it
@@ -543,8 +546,11 @@ SHAPE — how the article is built
   organisation, a study, a concrete example. A paragraph that only asserts something in
   general terms is the paragraph to cut.
 - Do not close by restating your opening. Say what happens next, and stop.
-- The word count is a target, not a quota. If the story does not support that much material,
-  write less. Never invent detail, speculate, or pad to reach the number.
+- The word count is a target, not a quota — but falling short of it usually means you have
+  not read enough of the story, not that the story is thin. Before settling for less, search
+  again for more of this same story: its headline, its distinctive phrases, names it
+  mentions, each scoped to ${source.domain}. Only when that still leaves you without
+  material, write less. Never invent detail, speculate, or pad to reach the number.
 
 STYLE — how it should read
 - Reading level: ${levelSpec}
