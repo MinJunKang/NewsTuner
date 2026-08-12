@@ -147,6 +147,9 @@ npm run dev
 
 ## 구조
 
+매체를 추가·교체할 때는 [docs/media-verification.md](docs/media-verification.md) 의
+검증 절차를 먼저 거치세요. 지금 목록의 전 매체 실측 결과도 거기에 있습니다.
+
 ```
 src/api.js               두 API 호출과 프롬프트
 src/App.jsx              화면 전체
