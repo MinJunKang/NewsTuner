@@ -369,10 +369,11 @@ something unrelated is not. If ${source.label} published nothing on it in ${rece
       picked = pool[Math.floor(Math.random() * pool.length)];
       // 고른 기사를 목록 맨 앞으로 보내야 나머지가 관련 기사가 됩니다.
       listed = [picked, ...listed.filter((x) => x.url !== picked.url)];
-    } catch {
-      // 키워드를 주셨는데 목록이 비었다는 것은 그 주제의 기사가 없다는 뜻입니다.
-      // 여기서 예전 경로로 넘어가면 무관한 기사를 써 오므로 그대로 알립니다.
-      if (focus) throw new Error(`"${focus}" 관련 기사를 찾지 못했습니다. 매체나 조건을 바꿔 보세요.`);
+    } catch (e) {
+      // 키워드를 주셨을 때 예전 경로로 넘어가면 무관한 기사를 써 오므로 그대로
+      // 알립니다. 실패 이유를 키워드 메시지로 덮지 않고 그대로 올립니다.
+      // 덮으면 "검색이 수행되지 않았다" 같은 진짜 원인이 안 보입니다.
+      if (focus) throw e;
       // 키워드가 없으면 예전처럼 한 번에 찾아 쓰는 경로로 갑니다.
       picked = null;
     }
@@ -746,7 +747,7 @@ List up to 8 candidates.
 Reply with JSON and nothing else:
 {"stories": [{"title": "...", "url": "...", "published": "YYYY-MM-DD", "summaryKo": "...", "matchesRequest": true, "relevance": 0}]}`;
 
-  const listCall = () =>
+  const listCall = (schema) =>
     gemini({
       geminiKey,
       proxy,
@@ -758,18 +759,31 @@ Reply with JSON and nothing else:
       maxOutputTokens: 2500,
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       tools: [{ google_search: {} }],
-      schema: STORIES_SCHEMA,
+      schema,
     });
 
-  // 허위 기사가 목록에 들어오는 경로는 모델이 검색을 실제로 하지 않고 기억으로
-  // 목록을 지어내는 것입니다. 그 경우 응답에 그라운딩 정보가 없으므로, 그것을
-  // 실제 검색의 증거로 요구합니다. 없으면 한 번 다시 부르고, 그래도 없으면
-  // 지어낸 목록을 쓰는 대신 실패로 처리합니다.
-  let { text, cand } = await listCall();
-  if (!(cand?.groundingMetadata?.groundingChunks || []).length) {
-    ({ text, cand } = await listCall());
-    if (!(cand?.groundingMetadata?.groundingChunks || []).length)
+  // 허위 기사가 목록에 들어오는 경로는 모델이 검색을 하지 않고 기억으로
+  // 목록을 지어내는 것이고, 그 경우 응답에 그라운딩 정보가 없습니다. 다만
+  // 스키마와 검색을 함께 쓰면 검색을 했는데도 그라운딩이 빠져 오는 일이
+  // 있습니다("길게" 오류의 원인이던 그 조합입니다). 그래서 그라운딩이 없으면
+  // 바로 실패로 보지 않고 스키마 없이 다시 불러 확인합니다. 그 경로는
+  // 그라운딩이 보존되므로, 거기서도 없어야 지어낸 것으로 판단합니다.
+  const hasGrounding = (c) => (c?.groundingMetadata?.groundingChunks || []).length > 0;
+  let { text, cand } = await listCall(STORIES_SCHEMA);
+  if (!hasGrounding(cand)) {
+    const plain = await listCall(undefined);
+    let parsedPlain = null;
+    try {
+      parsedPlain = extractJson(plain.text);
+    } catch {
+      parsedPlain = null;
+    }
+    if (hasGrounding(plain.cand) && parsedPlain) {
+      ({ text, cand } = plain);
+    } else if (!hasGrounding(plain.cand)) {
       throw new Error("검색이 실제로 수행되지 않았습니다. 다시 시도해 주세요.");
+    }
+    // 그라운딩은 있는데 파싱이 깨졌으면 첫 응답을 그대로 씁니다.
   }
 
   const parsed = extractJson(text);
@@ -817,7 +831,12 @@ Reply with JSON and nothing else:
   );
   const top = (dead ? list.filter((s) => !dead.has(s.url)) : list).slice(0, 5);
 
-  if (!top.length) throw new Error("기사를 찾지 못했습니다. 조건을 바꿔 보세요.");
+  if (!top.length)
+    throw new Error(
+      focus
+        ? `"${focus}" 관련 기사를 찾지 못했습니다. 매체나 조건을 바꿔 보세요.`
+        : "기사를 찾지 못했습니다. 조건을 바꿔 보세요."
+    );
   return top;
 }
 
