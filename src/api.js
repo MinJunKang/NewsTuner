@@ -70,6 +70,29 @@ export const onDomain = (url, domain) => {
 const stripMarkers = (t) =>
   typeof t === "string" ? t.replace(/\s*\[[\d.]+\]/g, "").trim() : "";
 
+// 기사가 아닌 페이지는 주소 모양만으로도 상당수 걸러집니다. 모델에게 판단을
+// 맡기는 대신 여기서 규칙으로 거릅니다. 실제 8개 매체 주소로 확인했습니다.
+const HUB_SEGMENT =
+  /^(tag|tags|topic|topics|hub|hubs|collection|collections|category|categories|section|sections|author|authors|people|series|search|live|video|videos|watch|listen|podcast|podcasts|gallery|galleries|photos|photo|newsletter|newsletters|about|subscribe|donate|index)$/i;
+
+export function looksLikeArticleUrl(u) {
+  const safe = safeUrl(u);
+  if (!safe) return false;
+  let path;
+  try {
+    path = new URL(safe).pathname;
+  } catch {
+    return false;
+  }
+  const segs = path.split("/").filter(Boolean);
+  if (!segs.length) return false; // 홈페이지
+  if (segs.some((seg) => HUB_SEGMENT.test(seg))) return false; // 허브·태그·영상 목록
+  const last = segs[segs.length - 1];
+  if (/\.(jpg|jpeg|png|gif|webp|pdf|mp3|mp4)$/i.test(last)) return false;
+  // 기사 주소는 날짜를 담거나, 제목에서 온 하이픈 슬러그를 답니다.
+  return /\/(19|20)\d{2}\/\d{1,2}\//.test(path) || (last.match(/-/g) || []).length >= 2;
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const findDetail = (details, type) =>
@@ -577,7 +600,7 @@ above. Exclude the story you just reported. If you found no others, use an empty
           titleKo: stripMarkers(r?.titleKo),
           url: onDomain(r?.url, source.domain) || "",
         }))
-        .filter((r) => r.title && r.url && r.url !== article.url)
+        .filter((r) => r.title && r.url && r.url !== article.url && looksLikeArticleUrl(r.url))
         .slice(0, 5);
 
   return article;
@@ -697,6 +720,9 @@ Reply with JSON and nothing else:
       relevance: Number.isFinite(s?.relevance) ? s.relevance : 0,
     }))
     .filter((s) => s.title && s.url)
+    // 주소 모양으로 기사가 아닌 페이지를 거릅니다. 모델에게 "허브를 쓰지 마라" 고
+    // 부탁하는 것과 달리 이쪽은 무시될 수 없습니다.
+    .filter((s) => looksLikeArticleUrl(s.url))
     // 관련성 판단을 지시로만 두면 무시될 때 걸러낼 방법이 없습니다. 모델이
     // 항목마다 스스로 내린 판단을 받아 여기서 실제로 걸러냅니다.
     .filter((s) => !focus || s.matchesRequest);
