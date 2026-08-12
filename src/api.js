@@ -114,7 +114,7 @@ export function looksLikeArticleUrl(u) {
 async function deadUrls(urls, proxy, proxyToken) {
   if (!proxy || !urls.length) return null;
   const headers = { "Content-Type": "application/json" };
-  if (proxyToken) headers["X-App-Token"] = proxyToken;
+  if (proxyToken?.trim()) headers["X-App-Token"] = proxyToken.trim();
   try {
     const res = await fetch(`${proxy.replace(/\/$/, "")}/check`, {
       method: "POST",
@@ -231,7 +231,7 @@ async function gemini({
 
   const headers = { "Content-Type": "application/json" };
   // 프록시를 쓸 때는 워커의 SHARED_TOKEN 과 맞춰 보냅니다.
-  if (proxy && proxyToken) headers["X-App-Token"] = proxyToken;
+  if (proxy && proxyToken?.trim()) headers["X-App-Token"] = proxyToken.trim();
 
   const generationConfig = {};
   if (maxOutputTokens) generationConfig.maxOutputTokens = maxOutputTokens;
