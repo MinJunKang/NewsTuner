@@ -610,6 +610,13 @@ const STORIES_SCHEMA = {
             type: "string",
             description: "KOREAN ONLY. One sentence on what the story is about.",
           },
+          relevance: {
+            type: "integer",
+            description:
+              "0 to 100. How directly this headline is about the topic the reader asked " +
+              "for: 100 means the headline is squarely about it, 0 means unrelated. " +
+              "When the reader asked for nothing in particular, set it to 0 — it is unused.",
+          },
           matchesRequest: {
             type: "boolean",
             description:
@@ -620,7 +627,7 @@ const STORIES_SCHEMA = {
               "When the reader asked for nothing in particular, set it to true.",
           },
         },
-        required: ["title", "url", "published", "summaryKo", "matchesRequest"],
+        required: ["title", "url", "published", "summaryKo", "matchesRequest", "relevance"],
       },
     },
   },
@@ -663,7 +670,7 @@ the publisher's own site; drop any story you cannot link. Do not summarise the a
 beyond one short Korean sentence saying what it is about.
 
 Reply with JSON and nothing else:
-{"stories": [{"title": "...", "url": "...", "published": "YYYY-MM-DD", "summaryKo": "...", "matchesRequest": true}]}`;
+{"stories": [{"title": "...", "url": "...", "published": "YYYY-MM-DD", "summaryKo": "...", "matchesRequest": true, "relevance": 0}]}`;
 
   const { text } = await gemini({
     geminiKey,
@@ -687,15 +694,26 @@ Reply with JSON and nothing else:
       summaryKo: stripMarkers(s?.summaryKo),
       url: onDomain(s?.url, source.domain) || "",
       matchesRequest: s?.matchesRequest !== false,
+      relevance: Number.isFinite(s?.relevance) ? s.relevance : 0,
     }))
     .filter((s) => s.title && s.url)
     // 관련성 판단을 지시로만 두면 무시될 때 걸러낼 방법이 없습니다. 모델이
     // 항목마다 스스로 내린 판단을 받아 여기서 실제로 걸러냅니다.
-    .filter((s) => !focus || s.matchesRequest)
-    .slice(0, 5);
+    .filter((s) => !focus || s.matchesRequest);
 
-  if (!list.length) throw new Error("기사를 찾지 못했습니다. 조건을 바꿔 보세요.");
-  return list;
+  // 정렬도 부탁만 하면 무시될 수 있으므로 코드에서 다시 세웁니다. 키워드가
+  // 있으면 관련도 높은 순, 없으면 발행일 최신순입니다. 판단은 모델이 하지만
+  // 순서는 코드가 정합니다.
+  const at = (d) => {
+    const t = Date.parse(d);
+    return Number.isNaN(t) ? 0 : t;
+  };
+  list.sort((a, b) => (focus ? b.relevance - a.relevance : at(b.published) - at(a.published)));
+
+  const top = list.slice(0, 5);
+
+  if (!top.length) throw new Error("기사를 찾지 못했습니다. 조건을 바꿔 보세요.");
+  return top;
 }
 
 /* ------------------------------------------------------------------ *
