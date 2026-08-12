@@ -25,6 +25,10 @@ export const ALLOWED_HOSTS = new Set([
   "thisiscolossal.com",
   "defector.com",
   "hyperallergic.com",
+  // 아래 둘은 기사 도메인이 아니라 피드 전용 호스트입니다. BBC 와 Marketplace 는
+  // 피드를 별도 도메인에서 내보냅니다(/feed 경로가 씁니다).
+  "bbci.co.uk",
+  "publicradio.org",
 ]);
 
 export function applyCors(res) {

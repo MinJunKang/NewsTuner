@@ -182,6 +182,68 @@ async function fetchFullText(url, proxy, proxyToken) {
   }
 }
 
+// 언론사가 직접 발행하는 RSS/Atom 피드에서 후보 목록을 만듭니다. 여기서 나온
+// 주소는 전부 발행사가 적은 실존 주소라 모델이 목록을 지어낼 여지가 원천적으로
+// 없고, 목록 모델 호출이 통째로 빠져 더 싸고 빠릅니다. 피드가 없거나 빈손이면
+// null 을 돌려주고 기존 검색 경로가 이어받습니다.
+async function feedStories({ proxy, proxyToken, source, focus, exclude }) {
+  if (!source.feed || !proxy) return null;
+  const headers = { "Content-Type": "application/json" };
+  if (proxyToken?.trim()) headers["X-App-Token"] = proxyToken.trim();
+  let items;
+  try {
+    const res = await fetch(`${proxy.replace(/\/$/, "")}/feed`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ url: source.feed }),
+    });
+    if (!res.ok) return null;
+    items = (await res.json())?.items;
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(items)) return null;
+
+  const wanted = (focus || "")
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((w) => w.length > 2);
+  let list = items
+    .map((it) => {
+      const t = Date.parse(it?.date);
+      // 피드 링크의 추적 쿼리(?at_medium=RSS 등)는 뗍니다. BBC 는 피드 링크를
+      // bbc.co.uk 로 적지만 같은 기사가 bbc.com 에 그대로 있어(확인함) 도메인
+      // 검사에 걸리지 않게 바꿔 적습니다.
+      const raw = String(it?.url || "")
+        .split("?")[0]
+        .replace("://www.bbc.co.uk/", "://www.bbc.com/");
+      return {
+        title: stripMarkers(it?.title),
+        published: Number.isNaN(t) ? "" : new Date(t).toISOString().slice(0, 10),
+        summaryKo: stripMarkers(it?.desc || ""),
+        url: onDomain(raw, source.domain) || "",
+        matchesRequest: true,
+        relevance: 0,
+        // 발행사 피드에서 온 주소는 실존이 증명된 것입니다. 표시 단계가 생존
+        // 확인 없이 원문 링크로 믿고 쓸 수 있습니다.
+        proven: true,
+      };
+    })
+    .filter((s) => s.title && s.url)
+    // 키워드는 제목이나 요약에 실제로 등장해야 통과합니다. 피드는 최신 수십
+    // 건만 담으므로, 여기서 빈손이면 더 깊이 뒤질 수 있는 검색 경로로 넘깁니다.
+    .filter(
+      (s) =>
+        !wanted.length ||
+        wanted.every((w) => (s.title + " " + s.summaryKo).toLowerCase().includes(w))
+    );
+
+  const fresh = list.filter((s) => !exclude?.includes(s.url));
+  if (fresh.length) list = fresh;
+  list.sort((a, b) => (Date.parse(b.published) || 0) - (Date.parse(a.published) || 0));
+  return list.slice(0, 5);
+}
+
 // 같은 매체·키워드로 연달아 받을 때, 후보 목록을 매번 새로 검색하면 매번
 // 10초 안팎과 검색 호출 하나를 다시 냅니다. 목록은 몇 분 안에는 그대로이므로
 // 세션 메모리에 잠깐 들고 있다가 재사용합니다. 다 소진되거나 10분이 지나면
@@ -839,8 +901,9 @@ ${full.paragraphs.join("\n\n")}`
       logIssue("기사열기실패", source?.id, (full ? "전문 " : "검색 ") + article.error);
       return { fail: "error" };
     }
-    // 전문을 실제로 받아왔다면 그 주소는 살아 있음이 증명된 것입니다.
-    return { article, cand, aliveUrl: full ? chosen?.url : null };
+    // 전문을 실제로 받아온 주소, 또는 발행사 피드에서 온 주소는 실존이
+    // 증명된 것입니다.
+    return { article, cand, aliveUrl: full || chosen?.proven ? chosen?.url : null };
   }
 
   // 1번 후보를 열지 못하는 일이 있습니다. 유료 장벽이 대표적입니다. 목록에
@@ -1006,6 +1069,12 @@ const STORIES_SCHEMA = {
 
 // 본문은 가져오지 않습니다. 무엇이 있는지 제목과 링크만 알려줍니다.
 export async function findStories({ geminiKey, proxy, proxyToken, source, topic, focus, exclude }) {
+  // 피드가 있는 매체는 발행사 목록이 곧 진실입니다. 성공하면 검색 목록을
+  // 아예 부르지 않습니다. 빈손이면(키워드가 최근 목록에 없음, 피드 응답
+  // 실패 등) 아래 검색 경로가 그대로 이어받습니다.
+  const fed = await feedStories({ proxy, proxyToken, source, focus, exclude });
+  if (fed?.length) return fed;
+
   // 키워드가 있으면 최신순이 아니라 관련순으로 찾아야 합니다. 발행 기간까지
   // 좁게 걸면 그 주제 기사가 그 며칠 안에 없다는 이유로 매번 빈손이 됩니다.
   const recency = source.window || "the last few days";
