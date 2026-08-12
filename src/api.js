@@ -322,12 +322,27 @@ not stretch or invent a story to fit the request.
 `
     : "";
 
+  // 검색과 집필을 한 번에 시키면, 모델이 무엇을 읽었는지 확인할 방법이 없고
+  // 출처도 함께 사라집니다. 먼저 후보 목록을 받아 실재하는 기사를 하나 고른 뒤,
+  // 그 기사만 놓고 쓰게 합니다. 목록의 나머지는 관련 기사로 씁니다.
+  let picked = story;
+  let listed = [];
+  if (!picked) {
+    try {
+      listed = await findStories({ geminiKey, proxy, proxyToken, source, topic, focus });
+      picked = listed[0];
+    } catch {
+      // 목록을 못 받으면 예전처럼 한 번에 찾아 쓰는 경로로 갑니다.
+      picked = null;
+    }
+  }
+
   // 관련 기사에서 고른 경우에는 새로 찾지 말고 그 기사를 그대로 다룹니다.
-  const intro = story
+  const intro = picked
     ? `Use Google Search to open this specific story published by ${source.label}:
-Title: ${story.title}
-URL: ${story.url}
-Report on that exact story, not a different one.
+Title: ${picked.title}
+URL: ${picked.url}
+Report on that exact story, not a different one. Do not substitute a different article.
 `
     : `Use Google Search to find a real story published in ${recency} by ${source.label} on the topic: ${topic}.
 
@@ -522,20 +537,36 @@ above. Exclude the story you just reported. If you found no others, use an empty
   // 그것이 비어 있을 때만 모델이 적어 낸 주소를 발행사 도메인 검사 후 씁니다.
   // 도메인 검사는 지어낸 주소를 다 걸러내지는 못하지만, 아무 링크도 없는 것보다는
   // 낫습니다. 둘 다 없을 때만 기사를 막습니다.
-  article.url = article.sources[0]?.uri || onDomain(article.url, source.domain) || "";
+  // 목록 단계에서 고른 기사의 주소가 1순위입니다. 검색 결과에서 나온 실제
+  // 주소이고 발행사 도메인 검사까지 통과한 것입니다. 그다음이 그라운딩 주소,
+  // 마지막이 모델이 이번 응답에 적어 낸 주소입니다.
+  article.url =
+    picked?.url || article.sources[0]?.uri || onDomain(article.url, source.domain) || "";
+
+  // 발행일도 목록 단계 값이 더 믿을 만합니다. 검색 결과에 붙어 오는 값입니다.
+  if (picked?.published) article.published = picked.published;
 
   // 여기서 기사를 막아 봤지만, 판단이 그라운딩 정보 하나에 걸려 있고 그 정보가
   // 자주 빠져 와서 정상 기사까지 막혔습니다. 막는 대신 화면에 경고를 띄웁니다.
   // 위험은 알리되 앱은 쓸 수 있어야 합니다.
 
-  article.related = (Array.isArray(article.related) ? article.related : [])
-    .map((r) => ({
-      title: stripMarkers(r?.title),
-      titleKo: stripMarkers(r?.titleKo),
-      url: onDomain(r?.url, source.domain) || "",
-    }))
-    .filter((r) => r.title && r.url && r.url !== article.url)
-    .slice(0, 5);
+  // 목록을 받아 왔다면 나머지 후보가 곧 관련 기사입니다. 검색에서 나온 주소라
+  // 모델이 이번 응답에 적어 낸 것보다 믿을 만합니다.
+  const leftovers = listed
+    .slice(1)
+    .map((r) => ({ title: r.title, titleKo: "", url: r.url }))
+    .filter((r) => r.url && r.url !== article.url);
+
+  article.related = leftovers.length
+    ? leftovers.slice(0, 5)
+    : (Array.isArray(article.related) ? article.related : [])
+        .map((r) => ({
+          title: stripMarkers(r?.title),
+          titleKo: stripMarkers(r?.titleKo),
+          url: onDomain(r?.url, source.domain) || "",
+        }))
+        .filter((r) => r.title && r.url && r.url !== article.url)
+        .slice(0, 5);
 
   return article;
 }
