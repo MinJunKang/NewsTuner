@@ -282,16 +282,16 @@ export async function fetchArticle({
     // 이 단계는 학습자용으로 눅여 쓰지 말라고 구체적으로 지시해야 실제 기사 문체가 나옵니다.
     // 문체만 실제 기사 수준이고, 표현은 어디까지나 새로 쓴 것이어야 합니다.
     hard:
-      "CEFR C1, written the way a US national newspaper actually writes. " +
+      "CEFR C1, written the way a wire reporter actually writes. " +
       "Open with a lead sentence that compresses what happened, to whom, and when. " +
-      "Vary sentence length: long sentences carrying relative clauses, appositives and " +
-      "subordinate clauses, broken up by short ones for emphasis. " +
-      "Attribute claims the way reporters do (officials said, according to the filing). " +
-      "Use the field's own terminology without pausing to explain it, and choose precise " +
-      "specific nouns over general ones. " +
+      "Sentences carry a lot of information but stay direct — somebody does something, with " +
+      "attribution appended the way reporters do (officials said, according to the filing). " +
+      "Vocabulary is a working adult's, and the field's own terms are used without stopping " +
+      "to explain them. " +
+      "What makes this level C1 is density and precision, not long or ornate sentences: more " +
+      "facts, exact figures, real names, specific terms. It is not more abstraction. " +
       "If your sources supply background on why this matters now, give it a paragraph. " +
-      "Do not simplify anything for a learner, and do not use textbook connectors " +
-      "such as moreover, furthermore, or in conclusion.",
+      "Do not use textbook connectors such as moreover, furthermore, or in conclusion.",
   }[level];
 
   // 길이를 못박아 두면 원문이 아무리 길어도 그만큼만 나옵니다.
@@ -370,6 +370,14 @@ Rules
   material, write less. Never invent detail, speculate, or reproduce the source's own
   sentences to reach the number. Everything must be in your own wording.
 - Reading level: ${levelSpec}
+- Write plain news English, the way an AP or NPR reporter writes: concrete nouns, active
+  verbs, people doing things. If a wire reporter would not write a phrase, do not write it.
+- Do not stack abstract nouns. Constructions like "an institutional obligation to adhere to
+  evidentiary standards" or "the central narrative surrounding heritage preservation" are not
+  journalism, they are padding. Write who did what instead, in the plainest words that are
+  still accurate.
+- Name the people involved and say what they do. Do not leave them as "officials",
+  "researchers", "experts" or "critics" when the story gives you their names.
 - Factual and neutral. Only state what you actually found.
 - Write only what your sources report. Do not add background, context, analysis or scene
   detail out of your own knowledge, however likely it seems. If a fact is not in what you
