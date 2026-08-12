@@ -18,15 +18,15 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - run: npm ci
       - run: npm run build
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: dist
 
@@ -37,7 +37,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      # v4 는 Node 20 용이라, GitHub 가 이를 Node 24 에서 강제로 돌리면서
-      # TLS 오류(self-signed certificate)로 배포가 실패했습니다.
+      # 액션은 최신 메이저로 유지합니다. Node 20 용 옛 버전을 GitHub 가 Node 24 에서
+      # 강제로 돌리면서 TLS 오류로 배포가 실패한 적이 있습니다.
       - id: deployment
         uses: actions/deploy-pages@v5
