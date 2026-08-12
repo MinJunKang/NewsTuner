@@ -179,6 +179,24 @@ async function fetchFullText(url, proxy, proxyToken) {
   }
 }
 
+// 언제 어떤 매체에서 무슨 오류가 났는지 기기에 남깁니다. 어디로도 전송하지
+// 않으며, 설정 탭에서 복사해 업데이트 요청에 붙일 수 있습니다. 200건 상한.
+export function logIssue(kind, where, message) {
+  try {
+    const key = "nt-errlog";
+    const arr = JSON.parse(localStorage.getItem(key) || "[]");
+    arr.unshift({
+      t: new Date().toISOString(),
+      kind,
+      where: where || "",
+      msg: String(message ?? "").slice(0, 300),
+    });
+    localStorage.setItem(key, JSON.stringify(arr.slice(0, 200)));
+  } catch {
+    /* 기록 실패가 본 작업을 막으면 안 됩니다 */
+  }
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const findDetail = (details, type) =>
@@ -500,6 +518,7 @@ something unrelated is not. If ${source.label} published nothing on it in ${rece
       // 키워드가 없으면 옛 경로로 떨어지는데, 그러면 왜 목록이 실패했는지가
       // 화면에서 사라집니다. 진단할 수 있게 콘솔에 남깁니다.
       console.warn("[nt-listfail]", source?.id, e?.message || e);
+      logIssue("목록실패", source?.id, e?.message || e);
       picked = null;
       tick("기사를 찾아 다시 쓰는 중…");
     }
@@ -750,6 +769,7 @@ ${full.paragraphs.join("\n\n")}`
 
     if (!article) {
       console.warn("[nt-attemptfail]", source?.id, full ? "전문" : "검색", chosen?.url, "parse");
+      logIssue("응답파싱실패", source?.id, (full ? "전문 " : "검색 ") + (chosen?.url || ""));
       return { fail: "parse" };
     }
     // 전문 모드에서는 검색이 없으므로 "찾지 못했다"는 error 선언이 성립하지
@@ -757,10 +777,12 @@ ${full.paragraphs.join("\n\n")}`
     // 있으면 선언을 무시하고 진행합니다.
     if (article.error && full && (article.paragraphs || []).length) {
       console.warn("[nt-attemptfail]", source?.id, "전문 모드의 무의미한 error 선언 무시", chosen?.url);
+      logIssue("무의미한error무시", source?.id, chosen?.url || "");
       article.error = "";
     }
     if (article.error) {
       console.warn("[nt-attemptfail]", source?.id, full ? "전문" : "검색", chosen?.url, "error:", article.error);
+      logIssue("기사열기실패", source?.id, (full ? "전문 " : "검색 ") + article.error);
       return { fail: "error" };
     }
     return { article, cand };

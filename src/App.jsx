@@ -8,6 +8,7 @@ import {
   lookupSentence,
   discuss,
   safeUrl,
+  logIssue,
 } from "./api.js";
 
 /* ---------------- config ---------------- */
@@ -460,6 +461,7 @@ export default function App() {
   const [seen, setSeen] = useState(() => load("nt-seen", []));
 
   const [saveFailed, setSaveFailed] = useState(false);
+  const [logMsg, setLogMsg] = useState("");
   const [ioMsg, setIoMsg] = useState("");
   const fileRef = useRef(null);
 
@@ -524,6 +526,7 @@ export default function App() {
       setTab("read");
     } catch (e) {
       setError(e.message);
+      logIssue("수신오류", `${field.id}/${source.id}`, e.message);
     } finally {
       setTuning(false);
       setProgress("");
@@ -692,6 +695,7 @@ export default function App() {
     } catch (e) {
       setStories([]);
       setPasteMsg(e.message);
+      logIssue("목록오류", `${field.id}/${source.id}`, e.message);
     } finally {
       setFinding(false);
     }
@@ -1417,6 +1421,50 @@ export default function App() {
                 </small>
               </div>
             )}
+
+            <div className="field">
+              <label>오류 기록</label>
+              <div className="row__chips">
+                <button
+                  className="paste__btn"
+                  onClick={async () => {
+                    try {
+                      const raw = localStorage.getItem("nt-errlog") || "[]";
+                      await navigator.clipboard.writeText(raw);
+                      setLogMsg("복사했습니다. 업데이트 요청에 붙여 주세요.");
+                    } catch {
+                      setLogMsg("복사하지 못했습니다.");
+                    }
+                  }}
+                >
+                  복사
+                </button>
+                <button
+                  className="paste__btn"
+                  onClick={() => {
+                    localStorage.removeItem("nt-errlog");
+                    setLogMsg("비웠습니다.");
+                  }}
+                >
+                  비우기
+                </button>
+                <span className="hint">
+                  {(() => {
+                    try {
+                      return JSON.parse(localStorage.getItem("nt-errlog") || "[]").length;
+                    } catch {
+                      return 0;
+                    }
+                  })()}
+                  건
+                </span>
+              </div>
+              {logMsg && <p className="io-msg" style={{ padding: "6px 0 0" }}>{logMsg}</p>}
+              <small>
+                언제 어떤 분야·매체에서 무슨 오류가 났는지 이 기기에만 남습니다. 어디로도
+                전송되지 않으며, 복사해서 붙여 주시면 업데이트에 반영합니다.
+              </small>
+            </div>
 
             <div className="field">
               <label>기사 배경</label>
