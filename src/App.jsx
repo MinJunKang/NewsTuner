@@ -101,7 +101,8 @@ const FIELDS = [
         window: "the last week", note: "연방대법원 전문, 법률가가 일반 독자용으로 풀어 씀" },
       { id: "tclaw", length: "mid", label: "The Conversation · Law", short: "TC LAW", freq: "100.7",
         domain: "theconversation.com",
-        window: "the last week", note: "법학 교수의 해설, 배경 설명이 친절함" },
+        // 법 섹션은 주간 발행량이 적어 1주 창으로는 검색이 빈손이 됩니다.
+        window: "the last month", note: "법학 교수의 해설, 배경 설명이 친절함" },
     ],
   },
   {
