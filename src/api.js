@@ -101,6 +101,28 @@ export function looksLikeArticleUrl(u) {
   return hasDate || hasSlug;
 }
 
+// 링크가 실제로 살아 있는지는 그 주소를 불러 봐야 압니다. 브라우저는 CORS 때문에
+// 상태 코드를 읽을 수 없으므로 워커를 거쳐야만 확인됩니다. 워커가 없으면 확인을
+// 건너뜁니다. 확인하지 못한 것을 죽었다고 볼 수는 없습니다.
+async function deadUrls(urls, proxy, proxyToken) {
+  if (!proxy || !urls.length) return null;
+  const headers = { "Content-Type": "application/json" };
+  if (proxyToken) headers["X-App-Token"] = proxyToken;
+  try {
+    const res = await fetch(`${proxy.replace(/\/$/, "")}/check`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ urls }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return Array.isArray(data?.dead) ? new Set(data.dead) : null;
+  } catch {
+    // 확인에 실패했다고 기사를 버리면 안 됩니다.
+    return null;
+  }
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const findDetail = (details, type) =>
