@@ -343,6 +343,8 @@ not stretch or invent a story to fit the request.
 Title: ${picked.title}
 URL: ${picked.url}
 Report on that exact story, not a different one. Do not substitute a different article.
+Use search only to read this article. Other results about the same event are not sources
+for this piece.
 `
     : `Use Google Search to find a real story published in ${recency} by ${source.label} on the topic: ${topic}.
 
@@ -373,6 +375,10 @@ Choosing which story to report
 Then write YOUR OWN English article reporting that story.
 
 Rules
+- Build the article from one source article — the one you opened. Other search results will
+  cover the same event; do not fold their details, figures or framing into it. If they say
+  something different, that is not yours to merge or reconcile. Report what your one source
+  says, and leave out what it does not cover.
 - Never copy sentences or distinctive phrases from the source. Re-report the facts in fresh wording.
 - Restructure freely. Do not follow the source's paragraph or sentence order, and do not
   rebuild its sentences with words swapped out. Decide for yourself what to lead with and how
@@ -414,6 +420,9 @@ Rules
 - Copy the names of people, institutions, journals and instruments exactly as they appear.
   Never reorder, translate, expand, abbreviate or reconstruct a name, and never attach a
   person to a different institution than the one the story gives them.
+- Whenever one party does something to another — demands, refuses, sanctions, sues, rejects,
+  pays — name both parties and check which way round it goes before you write the sentence.
+  Reversing who demanded and who refused is a factual error, not a wording choice.
 - Attribute every claim, argument and figure to whoever actually made it. Never merge two
   people's positions into one, and never move one source's argument to a different speaker.
   You are reading several search results; keep them apart.
