@@ -150,6 +150,12 @@ const LENGTHS = [
   { id: "long", label: "길게", hint: "약 1,500단어 · 장문 매체 분량" },
 ];
 
+// 오류 기록을 받을 주소. 스팸 수집기는 "아이디@도메인" 패턴을 정규식으로
+// 긁으므로, 조각으로 쪼개 클릭 순간에만 조립합니다. 소스와 빌드 결과물과
+// 화면 어디에도 완성된 주소가 문자열로 존재하지 않습니다.
+// (직전 커밋 히스토리에는 평문이 남아 있어 완전한 은닉은 아닙니다.)
+const REPORT_EMAIL = () => ["kmmj2005", ["gmail", "com"].join(".")].join("\u0040");
+
 const TABS = [
   ["read", "읽기"],
   ["talk", "질의응답"],
@@ -1442,6 +1448,37 @@ export default function App() {
                 <button
                   className="paste__btn"
                   onClick={() => {
+                    // mailto 는 서버 없이 메일 앱을 여는 표준 방식입니다. 본문
+                    // 길이 제한이 빡빡해 최근 30건을 한 줄 요약으로 담습니다.
+                    let entries = [];
+                    try {
+                      entries = JSON.parse(localStorage.getItem("nt-errlog") || "[]");
+                    } catch {
+                      entries = [];
+                    }
+                    if (!entries.length) {
+                      setLogMsg("보낼 기록이 없습니다.");
+                      return;
+                    }
+                    const lines = entries
+                      .slice(0, 30)
+                      .map((e) => `${(e.t || "").slice(0, 16)} [${e.kind}] ${e.where}: ${e.msg}`);
+                    let body = `News Tuner 오류 기록 (최근 ${lines.length}건)\n\n`;
+                    for (const l of lines) {
+                      if ((body + l).length > 1700) break;
+                      body += l + "\n";
+                    }
+                    location.href =
+                      `mailto:${REPORT_EMAIL()}?subject=${encodeURIComponent("News Tuner 오류 기록")}` +
+                      `&body=${encodeURIComponent(body)}`;
+                    setLogMsg("메일 앱이 열립니다. 보내기만 누르면 됩니다.");
+                  }}
+                >
+                  메일로 보내기
+                </button>
+                <button
+                  className="paste__btn"
+                  onClick={() => {
                     localStorage.removeItem("nt-errlog");
                     setLogMsg("비웠습니다.");
                   }}
@@ -1461,8 +1498,9 @@ export default function App() {
               </div>
               {logMsg && <p className="io-msg" style={{ padding: "6px 0 0" }}>{logMsg}</p>}
               <small>
-                언제 어떤 분야·매체에서 무슨 오류가 났는지 이 기기에만 남습니다. 어디로도
-                전송되지 않으며, 복사해서 붙여 주시면 업데이트에 반영합니다.
+                언제 어떤 분야·매체에서 무슨 오류가 났는지 이 기기에만 남습니다. 자동으로
+                전송되지 않으며, "메일로 보내기"를 누르면 메일 앱이 열려 최근 기록이 본문에
+                담깁니다. 개발자에게 전해지면 업데이트에 반영됩니다.
               </small>
             </div>
 
