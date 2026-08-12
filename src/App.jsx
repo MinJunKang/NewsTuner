@@ -388,6 +388,8 @@ export default function App() {
     return isArticle(a) ? a : null;
   });
   const [tuning, setTuning] = useState(false);
+  // 수신이 최대 1분까지 걸리므로, 멈춘 게 아니라는 것을 단계 문구로 보여줍니다.
+  const [progress, setProgress] = useState("");
   const [error, setError] = useState("");
 
   const [tab, setTab] = useState(() => {
@@ -450,6 +452,7 @@ export default function App() {
   const tuneIn = useCallback(
     async (story) => {
     setTuning(true);
+    setProgress("기사 찾는 중…");
     setError("");
     setSheet(null);
     setChat([]);
@@ -465,6 +468,7 @@ export default function App() {
         length: length.id,
         story,
         exclude: seen,
+        onProgress: setProgress,
       });
       setArticle(a);
       setPhrases([]);
@@ -476,6 +480,7 @@ export default function App() {
       setError(e.message);
     } finally {
       setTuning(false);
+      setProgress("");
     }
     },
     [keys, source, field, level, length, focus, seen]
@@ -1011,7 +1016,7 @@ export default function App() {
           <>
             {tuning && (
               <div style={{ padding: "48px 20px" }}>
-                <Spinner label="검색하고 기사를 다시 쓰는 중…" />
+                <Spinner label={progress || "검색하고 기사를 다시 쓰는 중…"} />
               </div>
             )}
             {error && !tuning && <p className="error">{error}</p>}

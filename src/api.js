@@ -371,7 +371,15 @@ export async function fetchArticle({
   length,
   story, // 관련 기사 목록에서 고른 특정 기사. 없으면 새로 찾습니다.
   exclude, // 최근에 읽은 기사 주소. 같은 글이 다시 나오지 않게 합니다.
+  onProgress, // 진행 단계를 화면에 알리는 콜백. API 호출과 무관합니다.
 }) {
+  const tick = (m) => {
+    try {
+      onProgress?.(m);
+    } catch {
+      /* 진행 표시가 죽어도 본 작업은 계속합니다 */
+    }
+  };
   const levelSpec = {
     easy: "CEFR B2. Natural news register, moderate sentence length.",
     // 이 단계는 학습자용으로 눅여 쓰지 말라고 구체적으로 지시해야 실제 기사 문체가 나옵니다.
@@ -415,8 +423,10 @@ something unrelated is not. If ${source.label} published nothing on it in ${rece
   // 그 기사만 놓고 쓰게 합니다. 목록의 나머지는 관련 기사로 씁니다.
   let picked = story;
   let listed = [];
+  if (picked) tick("고른 기사를 읽고 다시 쓰는 중…");
   if (!picked) {
     try {
+      tick("기사 찾는 중…");
       listed = await findStories({ geminiKey, proxy, proxyToken, source, topic, focus, exclude });
       // 항상 1번을 쓰면 조건이 같을 때 매번 같은 기사가 나옵니다. 상위 후보
       // 안에서 무작위로 고릅니다. 키워드가 있을 때는 관련도 순서가 의미를
@@ -425,6 +435,7 @@ something unrelated is not. If ${source.label} published nothing on it in ${rece
       picked = pool[Math.floor(Math.random() * pool.length)];
       // 고른 기사를 목록 맨 앞으로 보내야 나머지가 관련 기사가 됩니다.
       listed = [picked, ...listed.filter((x) => x.url !== picked.url)];
+      tick(`후보 ${listed.length}건 · 기사를 읽고 다시 쓰는 중…`);
     } catch (e) {
       // 키워드를 주셨을 때 예전 경로로 넘어가면 무관한 기사를 써 오므로 그대로
       // 알립니다. 실패 이유를 키워드 메시지로 덮지 않고 그대로 올립니다.
@@ -432,6 +443,7 @@ something unrelated is not. If ${source.label} published nothing on it in ${rece
       if (focus) throw e;
       // 키워드가 없으면 예전처럼 한 번에 찾아 쓰는 경로로 갑니다.
       picked = null;
+      tick("기사를 찾아 다시 쓰는 중…");
     }
   }
 
@@ -620,7 +632,9 @@ Exactly 5 keywords, chosen for a Korean learner of English.`;
   let article = null;
   let cand = null;
   let lastFail = "error";
+  let nth = 0;
   for (const chosen of attempts) {
+    if (nth++ > 0) tick("첫 기사를 열지 못해 다음 후보로 넘어가는 중…");
     const r = await attempt(chosen);
     if (r.article) {
       article = r.article;
