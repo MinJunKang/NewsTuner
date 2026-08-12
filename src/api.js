@@ -58,6 +58,11 @@ export const onDomain = (url, domain) => {
   }
 };
 
+// 그라운딩은 본문에 [2.1.1] 같은 인용 마커를 남깁니다. 화면에 그대로 보이므로
+// 사용자에게 내보내는 모든 문자열에서 걷어냅니다.
+const stripMarkers = (t) =>
+  typeof t === "string" ? t.replace(/\s*\[[\d.]+\]/g, "").trim() : "";
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const findDetail = (details, type) =>
@@ -349,6 +354,9 @@ Rules
 - Restructure freely. Do not follow the source's paragraph or sentence order, and do not
   rebuild its sentences with words swapped out. Decide for yourself what to lead with and how
   to arrange what you found.
+- Lead with what is new in this story — the finding, the decision, the change. Do not open
+  with general background on the field. Background belongs after the reader knows what
+  happened, and only as much as the story itself supplies.
 - Length: ${lengthSpec}. Use paragraphs of three to five sentences.
 - Every paragraph must carry something no earlier paragraph carried. Before writing each one,
   ask what it adds. If it would make a point you already made, in different words, do not
@@ -369,12 +377,17 @@ Rules
 - Quote a person directly only if you actually found that exact quote in your sources.
   Never invent a quote or put words in a named person's mouth. When unsure, paraphrase
   with attribution instead.
+- Copy the names of people, institutions, journals and instruments exactly as they appear.
+  Never reorder, translate, expand, abbreviate or reconstruct a name, and never attach a
+  person to a different institution than the one the story gives them.
 - Attribute every claim, argument and figure to whoever actually made it. Never merge two
   people's positions into one, and never move one source's argument to a different speaker.
   You are reading several search results; keep them apart.
-- Distinguish when the story was published from when the events happened. A date in the body
-  must be the date of the event, not the date of the article. If you are not sure which a
-  date refers to, leave it out.
+- The date attached to an article is when it was published, nothing more. Do not turn it into
+  the date of an event. If an article dated 7 August reports that researchers announced
+  something, that does not mean they announced it on 7 August — the announcement may be
+  months older. Give a date for an event only when the story itself states that date. When it
+  does not, write the sentence without a date rather than reaching for the one you have.
 - If your sources show genuine disagreement, report both positions and say who holds each.
   Do not manufacture a disagreement your sources do not show, and do not dress a fringe
   claim up as an equal side.
@@ -449,15 +462,19 @@ above. Exclude the story you just reported. If you found no others, use an empty
 
   // 화면은 paragraphs 를 그대로 렌더링하므로, 여기서 모양을 보장하지 않으면
   // 모델이 형식을 어겼을 때 렌더링 도중 터져 빈 화면이 됩니다.
+  article.title = stripMarkers(article.title);
+  article.titleKo = stripMarkers(article.titleKo);
+  article.summaryKo = stripMarkers(article.summaryKo);
+
   article.paragraphs = (Array.isArray(article.paragraphs) ? article.paragraphs : [])
-    .filter((p) => typeof p === "string" && p.trim())
-    .map((p) => p.trim());
+    .map(stripMarkers)
+    .filter(Boolean);
   if (article.paragraphs.length === 0)
     throw new Error("기사 형식이 올바르지 않습니다. 다시 시도해 보세요.");
 
-  article.keywords = (Array.isArray(article.keywords) ? article.keywords : []).filter(
-    (k) => k && typeof k.word === "string"
-  );
+  article.keywords = (Array.isArray(article.keywords) ? article.keywords : [])
+    .filter((k) => k && typeof k.word === "string")
+    .map((k) => ({ ...k, word: stripMarkers(k.word), ko: stripMarkers(k.ko), note: stripMarkers(k.note) }));
 
   // 그라운딩이 실제로 열어본 주소입니다. 모델이 적어 낸 것과 달리 존재가 보장됩니다.
   const chunks = cand?.groundingMetadata?.groundingChunks || [];
@@ -479,8 +496,8 @@ above. Exclude the story you just reported. If you found no others, use an empty
 
   article.related = (Array.isArray(article.related) ? article.related : [])
     .map((r) => ({
-      title: typeof r?.title === "string" ? r.title.trim() : "",
-      titleKo: typeof r?.titleKo === "string" ? r.titleKo.trim() : "",
+      title: stripMarkers(r?.title),
+      titleKo: stripMarkers(r?.titleKo),
       url: onDomain(r?.url, source.domain) || "",
     }))
     .filter((r) => r.title && r.url && r.url !== article.url)
@@ -565,9 +582,9 @@ Reply with JSON and nothing else:
   const parsed = extractJson(text);
   const list = (Array.isArray(parsed?.stories) ? parsed.stories : [])
     .map((s) => ({
-      title: typeof s?.title === "string" ? s.title.trim() : "",
-      published: typeof s?.published === "string" ? s.published.trim() : "",
-      summaryKo: typeof s?.summaryKo === "string" ? s.summaryKo.trim() : "",
+      title: stripMarkers(s?.title),
+      published: stripMarkers(s?.published),
+      summaryKo: stripMarkers(s?.summaryKo),
       url: onDomain(s?.url, source.domain) || "",
     }))
     .filter((s) => s.title && s.url)
