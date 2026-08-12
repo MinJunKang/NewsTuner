@@ -14,6 +14,7 @@
   /* 관용구 표시용 형광펜. 바탕이 테마와 무관하게 고정이므로 글자색도
      고정이어야 합니다. paper-ink 를 쓰면 다크 모드에서 흰 글자가 됩니다. */
   --mark: #f0dd8f;
+  --mark2: #a9ddd3;
   --mark-ink: #1a1d21;
   --mono: "IBM Plex Mono", ui-monospace, monospace;
   --serif: "Newsreader", Georgia, serif;
@@ -705,9 +706,10 @@ a {
 
 /* 표현 모드에서 첫 단어를 눌렀을 때, 어디서 시작했는지 보여줍니다. */
 .w--anchor {
-  background: rgba(61, 219, 192, 0.22);
+  background: var(--mark2);
   border-radius: 2px;
-  box-shadow: 0 0 0 2px rgba(61, 219, 192, 0.22);
+  box-shadow: 0 0 0 2px var(--mark2);
+  color: var(--mark-ink);
 }
 
 /* 설정 탭에서는 칩 줄에 위쪽 여백이 필요합니다. */
@@ -756,8 +758,11 @@ a {
   transition: background 0.1s;
 }
 
+/* 형광펜(.w--idiom)과 같은 원칙입니다. 배경은 테마와 무관한 고정색이므로
+   글자색도 고정이어야 합니다. 빼먹으면 다크 모드에서 흰 글자가 얹혀 안 읽힙니다. */
 .w:hover {
-  background: #f2d98a;
+  background: var(--mark);
+  color: var(--mark-ink);
 }
 
 .s {
@@ -766,7 +771,8 @@ a {
 }
 
 .s:hover {
-  background: #bfe8e0;
+  background: var(--mark2);
+  color: var(--mark-ink);
 }
 
 .summary {
