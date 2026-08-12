@@ -290,7 +290,6 @@ export async function fetchArticle({
     // 문체만 실제 기사 수준이고, 표현은 어디까지나 새로 쓴 것이어야 합니다.
     hard:
       "CEFR C1, written the way a wire reporter actually writes. " +
-      "Open with a lead sentence that compresses what happened, to whom, and when. " +
       "Sentences carry a lot of information but stay direct — somebody does something, with " +
       "attribution appended the way reporters do (officials said, according to the filing). " +
       "Vocabulary is a working adult's, and the field's own terms are used without stopping " +
@@ -361,9 +360,12 @@ Rules
 - Restructure freely. Do not follow the source's paragraph or sentence order, and do not
   rebuild its sentences with words swapped out. Decide for yourself what to lead with and how
   to arrange what you found.
-- Lead with what is new in this story — the finding, the decision, the change. Do not open
-  with general background on the field. Background belongs after the reader knows what
-  happened, and only as much as the story itself supplies.
+- The first paragraph must say what makes this news now: the specific thing that happened —
+  a ruling, a filing, a vote, a finding, an announcement — and who did it. Give its date
+  there too when the story supplies one; when it does not, say what happened without a date
+  rather than reaching for the article's own date. Do not open with general background on the
+  field. Background belongs after the reader knows what happened, and only as much as the
+  story itself supplies.
 - Length: ${lengthSpec}. Use paragraphs of three to five sentences.
 - Every paragraph must carry something no earlier paragraph carried. Before writing each one,
   ask what it adds. If it would make a point you already made, in different words, do not
@@ -403,9 +405,10 @@ Rules
   something, that does not mean they announced it on 7 August — the announcement may be
   months older. Give a date for an event only when the story itself states that date. When it
   does not, write the sentence without a date rather than reaching for the one you have.
-- If your sources show genuine disagreement, report both positions and say who holds each.
-  Do not manufacture a disagreement your sources do not show, and do not dress a fringe
-  claim up as an equal side.
+- If your sources show genuine disagreement, report both positions and say who holds each,
+  and give the evidence each side actually cites — the figures, the studies, the documents —
+  not just the position it leads them to. Do not manufacture a disagreement your sources do
+  not show, and do not dress a fringe claim up as an equal side.
 - Every "url" in "related" must be an address you actually saw in your search results, on
   ${source.label}'s own site. Never assemble, guess or complete an address, even if the
   pattern looks obvious — a link that 404s is worse than no link. Drop the entry rather
