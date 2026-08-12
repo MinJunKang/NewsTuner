@@ -179,6 +179,13 @@ async function fetchFullText(url, proxy, proxyToken) {
   }
 }
 
+// 같은 매체·키워드로 연달아 받을 때, 후보 목록을 매번 새로 검색하면 매번
+// 10초 안팎과 검색 호출 하나를 다시 냅니다. 목록은 몇 분 안에는 그대로이므로
+// 세션 메모리에 잠깐 들고 있다가 재사용합니다. 다 소진되거나 10분이 지나면
+// 새로 찾습니다. 비용은 오히려 줄고 반복 수신이 목록 단계를 통째로 건너뜁니다.
+const listCache = new Map();
+const LIST_TTL = 10 * 60 * 1000;
+
 // 언제 어떤 매체에서 무슨 오류가 났는지 기기에 남깁니다. 어디로도 전송하지
 // 않으며, 설정 탭에서 복사해 업데이트 요청에 붙일 수 있습니다. 200건 상한.
 export function logIssue(kind, where, message) {
@@ -507,9 +514,21 @@ something unrelated is not. If ${source.label} published nothing on it in ${rece
   let listed = [];
   if (picked) tick("고른 기사를 읽고 다시 쓰는 중…");
   if (!picked) {
+    const cacheKey = `${source.id}|${(focus || "").trim()}`;
+    const hit = listCache.get(cacheKey);
+    const fresh =
+      hit && Date.now() - hit.at < LIST_TTL
+        ? hit.items.filter((it) => !exclude?.includes(it.url))
+        : [];
     try {
-      tick("기사 찾는 중…");
-      listed = await findStories({ geminiKey, proxy, proxyToken, source, topic, focus, exclude });
+      if (fresh.length) {
+        tick("이전 검색의 후보에서 고르는 중…");
+        listed = fresh;
+      } else {
+        tick("기사 찾는 중…");
+        listed = await findStories({ geminiKey, proxy, proxyToken, source, topic, focus, exclude });
+        listCache.set(cacheKey, { at: Date.now(), items: listed });
+      }
       // 항상 1번을 쓰면 조건이 같을 때 매번 같은 기사가 나옵니다. 상위 후보
       // 안에서 무작위로 고릅니다. 키워드가 있을 때는 관련도 순서가 의미를
       // 가지므로 범위를 좁게 잡습니다.
