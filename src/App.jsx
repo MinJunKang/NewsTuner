@@ -94,7 +94,9 @@ const FIELDS = [
   {
     id: "law",
     label: "Law",
-    topic: "law, the courts and legal rulings",
+    // The Conversation 은 법을 별도 섹션 없이 정치·사회 아래 흩어 두므로,
+    // 검색이 걸리도록 그들이 실제로 쓰는 표현(대법원, 판결, 소송, 헌법)을 넓게 겁니다.
+    topic: "court rulings, the Supreme Court, lawsuits, legal disputes and constitutional questions",
     sources: [
       { id: "scotus", length: "mid", label: "SCOTUSblog", short: "SCOTUS", freq: "100.1",
         domain: "scotusblog.com",

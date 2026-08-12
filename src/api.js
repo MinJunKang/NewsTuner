@@ -307,7 +307,14 @@ async function gemini({
 
   const payload = JSON.stringify(body);
   const send = async () => {
-    const res = await fetch(url, { method: "POST", headers, body: payload });
+    let res;
+    try {
+      res = await fetch(url, { method: "POST", headers, body: payload });
+    } catch {
+      // Safari 는 "Load failed" 같은 영어 한 줄만 남깁니다. 연결 끊김, 프록시
+      // 무응답, CORS 실패가 전부 이 모양으로 옵니다.
+      throw new Error("네트워크 오류로 요청이 전달되지 못했습니다. 연결을 확인하고 다시 시도해 주세요.");
+    }
     let data;
     try {
       data = await res.json();
@@ -1104,6 +1111,15 @@ Reply with JSON and nothing else:
   const alive = dead ? list.filter((s) => !dead.has(s.url)) : list;
   const top = (alive.length ? alive : list).slice(0, 5);
 
+  if (!top.length) {
+    // 다음 보고 때 어느 단계에서 비었는지 바로 알 수 있게 남깁니다.
+    const raw = Array.isArray(parsed?.stories) ? parsed.stories.length : 0;
+    logIssue(
+      "목록상세",
+      source?.id,
+      `모델 ${raw}건 → 필터 후 ${list.length}건, 검색증거 ${searched(cand) ? "있음" : "없음"}`
+    );
+  }
   if (!top.length)
     throw new Error(
       focus
