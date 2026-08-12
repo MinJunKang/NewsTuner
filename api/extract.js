@@ -21,7 +21,11 @@ const stripTags = (t) => entity(t.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ")
 export function extractArticle(html) {
   let scope = html
     .replace(/<!--[\s\S]*?-->/g, " ")
-    .replace(/<(script|style|noscript|svg|iframe|form|nav|header|footer|figure|button)\b[\s\S]*?<\/\1>/gi, " ");
+    // aside 는 다시 걷어냅니다. 살려 보니 매체에 따라 관련 기사 티저가 그 안에
+    // 살아서, 단일 출처 보장을 추출 단계에서 다시 깨는 통로가 됩니다. 곁상자
+    // 몇 개를 잃는 것보다 다른 기사가 섞이지 않는 쪽이 값집니다. 본문 안의
+    // 목록(li)은 계속 받습니다.
+    .replace(/<(script|style|noscript|svg|iframe|form|nav|header|footer|aside|figure|button)\b[\s\S]*?<\/\1>/gi, " ");
 
   const articles = [...scope.matchAll(/<article\b[\s\S]*?<\/article>/gi)].map((m) => m[0]);
   if (articles.length) scope = articles.sort((a, b) => b.length - a.length)[0];
