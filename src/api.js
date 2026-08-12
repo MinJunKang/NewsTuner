@@ -8,6 +8,10 @@ export const MODELS = {
   lookup: "gemini-3.5-flash-lite",
   // 기사 토론: 맥락 이해가 필요한 쪽.
   chat: "gemini-3.6-flash",
+  // 후보 목록: 검색 결과에서 제목과 주소를 추리는 일이라 작은 모델로 충분합니다.
+  // 단가가 입력 1/5, 출력 1/3이라 기사당 비용의 ~30% 가 여기서 빠집니다.
+  // 재시도는 큰 모델로 올라가므로 lite 가 부실해도 뒷받침이 있습니다.
+  list: "gemini-3.5-flash-lite",
 };
 
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
@@ -818,12 +822,12 @@ Reply with JSON and nothing else:
   // 생각을 minimal 로 깎았더니 모델이 검색 도구를 집지 않고 기억으로 목록을
   // 만드는 일이 잦아졌습니다. 도구를 쓸지 말지도 생각의 일부라, 절약이 검색
   // 자체를 없애 버립니다. low 로 둡니다.
-  const listCall = (schema, level = "low", preface = "") =>
+  const listCall = (schema, level = "low", preface = "", model = MODELS.list) =>
     gemini({
       geminiKey,
       proxy,
       proxyToken,
-      model: MODELS.news,
+      model,
       thinkingLevel: level,
       // 생각 토큰이 출력 상한을 함께 깎을 수 있습니다(공식 문서도 "여유 있게
       // 잡고 finishReason 을 보라"고만 합니다). 재시도에서 생각을 medium 으로
@@ -849,11 +853,14 @@ Reply with JSON and nothing else:
   let { text, cand } = await listCall(STORIES_SCHEMA);
   if (!searched(cand)) {
     try {
+      // 재시도는 조건을 전부 올립니다. 스키마 제거, 생각 상향, 그리고 모델도
+      // 큰 쪽으로. 같은 조건으로 다시 부르면 같은 결과가 나오기 쉽습니다.
       const plain = await listCall(
         undefined,
         "medium",
         "Your previous attempt answered from memory without running Google Search. That is " +
-          "not acceptable: every story must come from an actual search you run now.\n\n"
+          "not acceptable: every story must come from an actual search you run now.\n\n",
+        MODELS.news
       );
       // 재시도가 낫다고 볼 근거(검색 증거)가 있고 파싱도 되면 그쪽을 씁니다.
       if (searched(plain.cand) && tryParse(plain.text)) ({ text, cand } = plain);
