@@ -759,11 +759,11 @@ export async function findStories({ geminiKey, proxy, proxyToken, source, topic,
   const goal = focus
     ? `Find articles on ${source.domain} whose headline is about ${focus}.
 
-Judge each candidate from its headline first. Order the list by how directly the headline is
-about ${focus} — closest first, not newest first. Recency barely matters here; a good match
-from a few months ago beats a loose one from yesterday. Include a story only if its headline
-or subject really is about ${focus}. If only two qualify, list two. If none do, return an
-empty list — an unrelated story is not a fallback.`
+Being about ${focus} is a requirement, not a ranking: include a story only if its headline
+or subject really is about it, and drop everything else. Among the stories that qualify,
+newer is better — order them newest first, and reach back months only when nothing recent
+qualifies. If only two qualify, list two. If none do, return an empty list — an unrelated
+story is not a fallback.`
     : `List what ${source.label} has published most recently on ${topic}, newest first.
 
 Order by publication date, newest first. I want what they have just put out, not their
@@ -872,14 +872,19 @@ Reply with JSON and nothing else:
   const fresh = list.filter((s) => !exclude?.includes(s.url));
   if (fresh.length) list = fresh;
 
-  // 정렬도 부탁만 하면 무시될 수 있으므로 코드에서 다시 세웁니다. 키워드가
-  // 있으면 관련도 높은 순, 없으면 발행일 최신순입니다. 판단은 모델이 하지만
-  // 순서는 코드가 정합니다.
+  // 정렬도 부탁만 하면 무시될 수 있으므로 코드에서 다시 세웁니다. 관련성은
+  // matchesRequest 필터로 이미 자격 검사를 통과했으므로, 순위는 키워드가 있든
+  // 없든 발행일 최신순입니다. 키워드가 있을 때 관련도 점수는 날짜가 같거나
+  // 없을 때의 동률 판정에만 씁니다. 판단은 모델이 하지만 순서는 코드가 정합니다.
   const at = (d) => {
     const t = Date.parse(d);
     return Number.isNaN(t) ? 0 : t;
   };
-  list.sort((a, b) => (focus ? b.relevance - a.relevance : at(b.published) - at(a.published)));
+  list.sort((a, b) => {
+    const byDate = at(b.published) - at(a.published);
+    if (byDate !== 0) return byDate;
+    return focus ? b.relevance - a.relevance : 0;
+  });
 
   // 정렬한 뒤 위에서부터 링크가 살아 있는지 확인하고, 확실히 죽은 것만 뺍니다.
   // 자르기 전에 해야 죽은 링크가 빠진 만큼 아래 후보가 올라옵니다.
