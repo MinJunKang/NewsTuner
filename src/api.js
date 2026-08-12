@@ -823,22 +823,26 @@ Reply with JSON and nothing else:
   // 있습니다("길게" 오류의 원인이던 그 조합입니다). 그래서 그라운딩이 없으면
   // 바로 실패로 보지 않고 스키마 없이 다시 불러 확인합니다. 그 경로는
   // 그라운딩이 보존되므로, 거기서도 없어야 지어낸 것으로 판단합니다.
+  // 검색 증거(인용, 검색어 기록)를 하드 조건으로 걸어 봤지만, 증거가 안 붙어
+  // 오는 정상 응답이 실전에서 계속 나와 세 번 연속 기능을 막았습니다. 증거가
+  // 없으면 조건을 바꿔 한 번 더 시도해 보되, 그래도 없으면 목록을 받아들입니다.
+  // 허위 목록은 하류가 잡습니다. 도메인과 주소 모양 검사, 워커 링크 검사,
+  // 그리고 집필 단계가 제목을 검색해 흔적이 없으면 다음 후보로 넘어갑니다.
   let { text, cand } = await listCall(STORIES_SCHEMA);
   if (!searched(cand)) {
-    const plain = await listCall(
-      undefined,
-      "medium",
-      "Your previous attempt answered from memory without running Google Search. That is " +
-        "not acceptable: every story must come from an actual search you run now.\n\n"
-    );
-    if (!searched(plain.cand))
-      throw new Error("검색이 실제로 수행되지 않았습니다. 다시 시도해 주세요.");
-    const parsedPlain = tryParse(plain.text);
-    // 재시도가 검색에는 근거했는데 파싱이 깨졌다면, 검색 안 한 첫 응답으로
-    // 돌아가면 안 됩니다. 그건 이 검사가 막으려는 바로 그 지어낸 목록입니다.
-    if (!parsedPlain)
-      throw new Error("모델 응답을 읽지 못했습니다. 다시 시도해 주세요.");
-    ({ text, cand } = plain);
+    try {
+      const plain = await listCall(
+        undefined,
+        "medium",
+        "Your previous attempt answered from memory without running Google Search. That is " +
+          "not acceptable: every story must come from an actual search you run now.\n\n"
+      );
+      // 재시도가 낫다고 볼 근거(검색 증거)가 있고 파싱도 되면 그쪽을 씁니다.
+      if (searched(plain.cand) && tryParse(plain.text)) ({ text, cand } = plain);
+      else if (!tryParse(text) && tryParse(plain.text)) ({ text, cand } = plain);
+    } catch {
+      // 재시도가 실패해도 첫 응답으로 계속합니다.
+    }
   }
 
   const parsed = extractJson(text);
