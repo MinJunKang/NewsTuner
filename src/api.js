@@ -190,6 +190,8 @@ async function feedStories({ proxy, proxyToken, source, focus, exclude }) {
   if (!source.feed || !proxy) return null;
   const headers = { "Content-Type": "application/json" };
   if (proxyToken?.trim()) headers["X-App-Token"] = proxyToken.trim();
+  // 이 함수의 실패는 검색 경로가 조용히 이어받으므로 화면에는 안 보입니다.
+  // 어느 지점에서 왜 넘어갔는지는 기록에 남겨야 다음 보고에서 진단이 됩니다.
   let items;
   try {
     const res = await fetch(`${proxy.replace(/\/$/, "")}/feed`, {
@@ -197,12 +199,21 @@ async function feedStories({ proxy, proxyToken, source, focus, exclude }) {
       headers,
       body: JSON.stringify({ url: source.feed }),
     });
-    if (!res.ok) return null;
-    items = (await res.json())?.items;
-  } catch {
+    if (!res.ok) {
+      logIssue("피드실패", source?.id, `프록시 응답 ${res.status}`);
+      return null;
+    }
+    const data = await res.json();
+    if (data?.error?.message) logIssue("피드실패", source?.id, data.error.message);
+    items = data?.items;
+  } catch (e) {
+    logIssue("피드실패", source?.id, String(e?.message || e));
     return null;
   }
-  if (!Array.isArray(items)) return null;
+  if (!Array.isArray(items) || !items.length) {
+    logIssue("피드실패", source?.id, "항목 0건");
+    return null;
+  }
 
   const wanted = (focus || "")
     .toLowerCase()
@@ -240,6 +251,12 @@ async function feedStories({ proxy, proxyToken, source, focus, exclude }) {
 
   const fresh = list.filter((s) => !exclude?.includes(s.url));
   if (fresh.length) list = fresh;
+  if (!list.length)
+    logIssue(
+      "피드빈손",
+      source?.id,
+      `${items.length}건 중 조건 일치 0건${focus ? ` (키워드 "${focus}")` : ""}`
+    );
   list.sort((a, b) => (Date.parse(b.published) || 0) - (Date.parse(a.published) || 0));
   return list.slice(0, 5);
 }
