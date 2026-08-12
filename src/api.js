@@ -432,6 +432,7 @@ export async function fetchArticle({
   }[level];
 
   // 길이를 못박아 두면 원문이 아무리 길어도 그만큼만 나옵니다.
+  const targetWords = { short: 400, mid: 800, long: 1500 }[length] || 800;
   const lengthSpec =
     {
       short: "about 400 words",
@@ -528,10 +529,18 @@ Address: ${chosen.url}
 The complete text of the story appears at the end of this message under SOURCE TEXT.
 Work only from that text. Do not search, and do not bring in anything the text does not say.`;
 
+    const srcWords = full
+      ? full.paragraphs.join(" ").split(/\s+/).filter(Boolean).length
+      : 0;
     const quotaRule = full
-      ? `- The word count is a target, not a quota. You have the complete text below — if it
-  does not support the target, write less. Never invent detail, speculate, or pad to
-  reach the number.`
+      ? srcWords >= targetWords
+        ? `- The target is about ${targetWords} words, and the source below runs about ${srcWords}
+  words — it comfortably supports the target, so deliver it. Coming in far under
+  ${targetWords} words from a source this size means you summarized instead of re-reporting.
+  Never invent detail or pad; the material is all below.`
+        : `- The target is about ${targetWords} words but the source below runs only about
+  ${srcWords} words. Do not stretch it — cover everything it says and stop. Never invent
+  detail, speculate, or pad to reach a number the source cannot support.`
       : `- The word count is a target, not a quota — but falling short of it usually means you have
   not read enough of the story, not that the story is thin. Before settling for less, search
   again for more of this same story: its headline, its distinctive phrases, names it
@@ -604,6 +613,10 @@ SHAPE — how the article is built
 - Ground each paragraph in something specific: a figure, a date, a named person or
   organisation, a study, a concrete example. A paragraph that only asserts something in
   general terms is the paragraph to cut.
+- When you do have to cut, keep every quantitative comparison and contrast the source
+  draws — X is high while Y is low, estimates range from A to B, one result agrees and
+  another conflicts. Those carry the findings. Equipment specifications and dimensions are
+  the first thing to drop, not the last.
 - Do not close by restating your opening. Say what happens next, and stop.
 ${quotaRule}
 
@@ -656,11 +669,10 @@ ${full.paragraphs.join("\n\n")}`
       proxy,
       proxyToken,
       model: MODELS.news,
-      // 검색을 몇 번 돌릴지 정하는 것도 생각의 일부입니다. 긴 분량은 같은 기사를
-      // 여러 검색으로 캐야 채워지는데, low 로는 한두 번 검색하고 재료 부족으로
-      // 결론 내립니다. 길게일 때만 medium 을 씁니다. 전문이 손에 있으면 캘 것이
-      // 없으므로 low 로 충분합니다.
-      thinkingLevel: useSearch && length === "long" ? "medium" : "low",
+      // 긴 분량은 검색 경로에서는 여러 번 캐야 하고, 전문 경로에서도 1500단어를
+      // 원문 전 구간에 배분하는 설계가 필요합니다. 둘 다 생각이 드는 일이라
+      // 길게일 때는 경로와 무관하게 medium 을 씁니다.
+      thinkingLevel: length === "long" ? "medium" : "low",
       contents: [{ role: "user", parts: [{ text: promptText }] }],
       // 전문이 있으면 검색을 끕니다. 다른 기사가 섞일 통로가 사라지고, 검색
       // 주입 입력과 그라운딩 호출 비용도 함께 사라집니다.
