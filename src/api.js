@@ -72,8 +72,8 @@ const stripMarkers = (t) =>
 
 // 기사가 아닌 페이지는 주소 모양만으로도 상당수 걸러집니다. 모델에게 판단을
 // 맡기는 대신 여기서 규칙으로 거릅니다. 실제 8개 매체 주소로 확인했습니다.
-const HUB_SEGMENT =
-  /^(tag|tags|topic|topics|hub|hubs|collection|collections|category|categories|section|sections|author|authors|people|series|search|live|video|videos|watch|listen|podcast|podcasts|gallery|galleries|photos|photo|newsletter|newsletters|about|subscribe|donate|index)$/i;
+const HARD_HUB =
+  /^(tag|tags|topic|topics|hub|hubs|category|categories|search|author|authors|people|video|videos|watch|listen|podcast|podcasts|gallery|galleries|photos|photo|newsletter|newsletters|about|subscribe|donate)$/i;
 
 export function looksLikeArticleUrl(u) {
   const safe = safeUrl(u);
@@ -86,33 +86,19 @@ export function looksLikeArticleUrl(u) {
   }
   const segs = path.split("/").filter(Boolean);
   if (!segs.length) return false; // 홈페이지
-  if (segs.some((seg) => HUB_SEGMENT.test(seg))) return false; // 허브·태그·영상 목록
+  // section 이나 archive 는 허브 이름이기도 하고 기사 경로의 일부이기도 합니다.
+  // NPR Shots 기사가 /sections/health-shots/2026/08/11/... 이라, 그런 말까지
+  // 막으면 그 매체 기사가 통째로 사라집니다. 확실한 것만 막고, 나머지는 아래의
+  // 날짜와 슬러그 검사로 가립니다.
+  if (segs.some((seg) => HARD_HUB.test(seg))) return false;
+
   const last = segs[segs.length - 1];
   if (/\.(jpg|jpeg|png|gif|webp|pdf|mp3|mp4)$/i.test(last)) return false;
-  // 기사 주소는 날짜를 담거나, 제목에서 온 하이픈 슬러그를 답니다.
-  return /\/(19|20)\d{2}\/\d{1,2}\//.test(path) || (last.match(/-/g) || []).length >= 2;
-}
 
-// 링크가 실제로 살아 있는지는 그 주소를 불러 봐야 압니다. 브라우저는 CORS 때문에
-// 상태 코드를 읽을 수 없으므로 워커를 거쳐야만 확인됩니다. 워커가 없으면 확인을
-// 건너뜁니다. 확인하지 못한 것을 죽었다고 볼 수는 없습니다.
-async function deadUrls(urls, proxy, proxyToken) {
-  if (!proxy || !urls.length) return null;
-  const headers = { "Content-Type": "application/json" };
-  if (proxyToken) headers["X-App-Token"] = proxyToken;
-  try {
-    const res = await fetch(`${proxy.replace(/\/$/, "")}/check`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ urls }),
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    return Array.isArray(data?.dead) ? new Set(data.dead) : null;
-  } catch {
-    // 확인에 실패했다고 기사를 버리면 안 됩니다.
-    return null;
-  }
+  // 기사 주소는 날짜를 담거나, 제목에서 온 하이픈 슬러그를 답니다.
+  const hasDate = /\/(19|20)\d{2}\/\d{1,2}\//.test(path);
+  const hasSlug = (last.match(/-/g) || []).length >= 2;
+  return hasDate || hasSlug;
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -777,7 +763,7 @@ Reply with JSON and nothing else:
   const parsed = extractJson(text);
   // 8건을 받아 거른 뒤 5건만 남깁니다. 여유를 두지 않으면 주소나 관련성 검사에서
   // 빠진 만큼 목록이 그대로 짧아집니다.
-  const list = (Array.isArray(parsed?.stories) ? parsed.stories : [])
+  let list = (Array.isArray(parsed?.stories) ? parsed.stories : [])
     .map((s) => ({
       title: stripMarkers(s?.title),
       published: stripMarkers(s?.published),
@@ -793,9 +779,13 @@ Reply with JSON and nothing else:
     // 관련성 판단을 지시로만 두면 무시될 때 걸러낼 방법이 없습니다. 모델이
     // 항목마다 스스로 내린 판단을 받아 여기서 실제로 걸러냅니다.
     .filter((s) => !focus || s.matchesRequest)
-    // 최근에 읽은 기사는 뺍니다. 같은 조건으로 다시 눌렀을 때 같은 글이
-    // 나오지 않게 하는 가장 확실한 방법입니다.
-    .filter((s) => !exclude?.includes(s.url));
+    ;
+
+  // 최근에 읽은 기사는 뺍니다. 같은 조건으로 다시 눌렀을 때 같은 글이 나오지
+  // 않게 하는 가장 확실한 방법입니다. 다만 그것 때문에 후보가 전부 사라지면
+  // 제외를 포기합니다. 같은 기사를 다시 보는 편이 아무것도 못 읽는 것보다 낫습니다.
+  const fresh = list.filter((s) => !exclude?.includes(s.url));
+  if (fresh.length) list = fresh;
 
   // 정렬도 부탁만 하면 무시될 수 있으므로 코드에서 다시 세웁니다. 키워드가
   // 있으면 관련도 높은 순, 없으면 발행일 최신순입니다. 판단은 모델이 하지만
