@@ -610,8 +610,17 @@ const STORIES_SCHEMA = {
             type: "string",
             description: "KOREAN ONLY. One sentence on what the story is about.",
           },
+          matchesRequest: {
+            type: "boolean",
+            description:
+              "Only meaningful when the reader asked for a particular topic. true if this " +
+              "story is about that topic or clearly connected to it, false if it is not. " +
+              "Judge honestly: a false here is more useful than a wrong true, because a " +
+              "false one is dropped and a wrong true is what the reader ends up reading. " +
+              "When the reader asked for nothing in particular, set it to true.",
+          },
         },
-        required: ["title", "url", "published", "summaryKo"],
+        required: ["title", "url", "published", "summaryKo", "matchesRequest"],
       },
     },
   },
@@ -646,7 +655,7 @@ canonical URL on the publisher's own site; drop any story you cannot link. Do no
 the article body beyond one short Korean sentence saying what it is about.
 
 Reply with JSON and nothing else:
-{"stories": [{"title": "...", "url": "...", "published": "YYYY-MM-DD", "summaryKo": "..."}]}`;
+{"stories": [{"title": "...", "url": "...", "published": "YYYY-MM-DD", "summaryKo": "...", "matchesRequest": true}]}`;
 
   const { text } = await gemini({
     geminiKey,
@@ -667,8 +676,12 @@ Reply with JSON and nothing else:
       published: stripMarkers(s?.published),
       summaryKo: stripMarkers(s?.summaryKo),
       url: onDomain(s?.url, source.domain) || "",
+      matchesRequest: s?.matchesRequest !== false,
     }))
     .filter((s) => s.title && s.url)
+    // 관련성 판단을 지시로만 두면 무시될 때 걸러낼 방법이 없습니다. 모델이
+    // 항목마다 스스로 내린 판단을 받아 여기서 실제로 걸러냅니다.
+    .filter((s) => !focus || s.matchesRequest)
     .slice(0, 5);
 
   if (!list.length) throw new Error("기사를 찾지 못했습니다. 조건을 바꿔 보세요.");
