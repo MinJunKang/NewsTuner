@@ -21,17 +21,42 @@ const stripTags = (t) => entity(t.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ")
 export function extractArticle(html) {
   let scope = html
     .replace(/<!--[\s\S]*?-->/g, " ")
-    .replace(/<(script|style|noscript|svg|iframe|form|nav|header|footer|aside|figure|button)\b[\s\S]*?<\/\1>/gi, " ");
+    .replace(/<(script|style|noscript|svg|iframe|form|nav|header|footer|figure|button)\b[\s\S]*?<\/\1>/gi, " ");
 
   const articles = [...scope.matchAll(/<article\b[\s\S]*?<\/article>/gi)].map((m) => m[0]);
   if (articles.length) scope = articles.sort((a, b) => b.length - a.length)[0];
 
-  const paragraphs = [...scope.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi)]
-    .map((m) => stripTags(m[1]))
+  // p 만 모으면 목록으로 쓰인 섹션이 통째로 사라집니다. li 도 문서 순서대로
+  // 함께 받습니다. 안쪽에 다른 태그가 겹치면 짧은 쪽 짝을 먼저 무는 정규식
+  // 특성상 중복이 생길 수 있어 아래에서 연속 중복을 걷어냅니다.
+  const items = [...scope.matchAll(/<(p|li)\b[^>]*>([\s\S]*?)<\/\1>/gi)].map((m) => ({
+    tag: m[1].toLowerCase(),
     // 첫 글자를 장식용으로 떼어 놓는 매체가 있어 "O ne might" 처럼 붙어 나옵니다.
-    .map((t) => t.replace(/^([A-Za-z])\s+(?=[a-z]{2})/, "$1"))
-    .filter((t) => t.length >= 60 || /[.!?]["'’]?$/.test(t))
-    .filter((t) => t.split(/\s+/).length >= 4);
+    text: stripTags(m[2]).replace(/^([A-Za-z])\s+(?=[a-z]{2})/, "$1"),
+  }));
+
+  // 메뉴와 헤드라인 목록은 Title Case 라 대문자로 시작하는 단어 비율이 높고,
+  // 본문 목록 항목은 소문자 위주입니다. li 는 이 비율로 산문만 받습니다.
+  const capRatio = (t) => {
+    const words = t.split(/\s+/).filter((w) => /[A-Za-z]/.test(w));
+    if (!words.length) return 1;
+    return words.filter((w) => /^[A-Z]/.test(w)).length / words.length;
+  };
+
+  const paragraphs = items
+    .filter(({ tag, text }) => {
+      const w = text.split(/\s+/).filter(Boolean).length;
+      if (w < 4) return false;
+      if (tag === "p") return text.length >= 60 || /[.!?]["'’]?$/.test(text);
+      // li: 문장으로 끝나거나 충분히 길고, 산문답게 소문자 위주여야 합니다.
+      return (/[.!?]["'’]?$/.test(text) || text.length >= 80) && capRatio(text) <= 0.5;
+    })
+    .map(({ text }) => text);
+
+  // 겹쳐 잡힌 연속 중복을 걷어냅니다.
+  for (let i = paragraphs.length - 1; i > 0; i--) {
+    if (paragraphs[i] === paragraphs[i - 1]) paragraphs.splice(i, 1);
+  }
 
   // 본문 끝에 달리는 상용구(댓글 정책, 저작권, 구독 권유)를 꼬리에서 걷어냅니다.
   const TAIL = /moderates comments|all rights reserved|sign up for|originally (appeared|published)|newsletter|delivered to your (e-?mail |in)?box|get highlights of/i;

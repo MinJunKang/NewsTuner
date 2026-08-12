@@ -579,6 +579,11 @@ FACTS — what has to be exactly right
   without a date rather than reaching for the one you have.
 - Quote a person directly only if you found that exact quote. Never invent a quote or put
   words in a named person's mouth. When unsure, paraphrase with attribution.
+- Keep each quotation in the context where it appears. A quote said about one topic must not
+  be moved next to a different topic, where it would seem to be about that instead.
+- Keep the source's degree of certainty exactly. If researchers are "considering" or
+  "wondering about" something, do not upgrade it to "developing" or "building"; a "may" or
+  "could" must not become a "will". Firming up a hedge is a factual error.
 - If the story shows genuine disagreement, report both positions, say who holds each, and
   give the evidence each side cites — the figures, the studies, the documents — not just the
   position it leads them to. Do not manufacture a disagreement the story does not show, and
