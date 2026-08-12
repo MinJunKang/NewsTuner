@@ -14,6 +14,7 @@ export const ALLOWED_HOSTS = new Set([
   "theconversation.com",
   "quantamagazine.org",
   "technologyreview.com",
+  "arstechnica.com",
   "sciencenews.org",
   "marketplace.org",
   "theatlantic.com",

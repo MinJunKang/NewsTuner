@@ -53,6 +53,9 @@ const FIELDS = [
       { id: "mittr", label: "MIT Technology Review", short: "MIT TR", freq: "94.7",
         domain: "technologyreview.com",
         window: "the last week", note: "AI·기술 정책, 연구자 어휘" },
+      { id: "ars", label: "Ars Technica", short: "ARS", freq: "95.5",
+        domain: "arstechnica.com",
+        window: "the last few days", note: "IT·과학 실무 보도, 뉴스는 짧고 특집은 김" },
     ],
   },
   {
