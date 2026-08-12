@@ -157,6 +157,34 @@ const LENGTHS = [
 // (직전 커밋 히스토리에는 평문이 남아 있어 완전한 은닉은 아닙니다.)
 const REPORT_EMAIL = () => ["kmmj2005", ["gmail", "com"].join(".")].join("\u0040");
 
+// 바로 전송용 구글 폼. 만들어서 두 ID 를 채우면 "바로 전송" 버튼이 나타납니다.
+// 브라우저는 메일을 직접 발송할 수 없어(mailto 가 한계), 폼으로 무음 POST 하고
+// 폼의 "새 응답 이메일 알림"이 Gmail 로 알려주는 방식입니다. README 부록 참고.
+const REPORT_FORM = {
+  formId: "",  // 폼 주소의 /d/e/ 뒤 긴 문자열
+  entryId: "", // 미리 채운 링크의 entry.숫자 에서 숫자
+};
+
+// 최근 기록을 전송용 한 줄 요약으로 만듭니다. mailto 와 폼 전송이 공유합니다.
+function summarizeErrLog(maxChars) {
+  let entries = [];
+  try {
+    entries = JSON.parse(localStorage.getItem("nt-errlog") || "[]");
+  } catch {
+    entries = [];
+  }
+  if (!entries.length) return null;
+  const lines = entries
+    .slice(0, 30)
+    .map((e) => `${(e.t || "").slice(0, 16)} [${e.kind}] ${e.where}: ${e.msg}`);
+  let body = `News Tuner 오류 기록 (최근 ${lines.length}건)\n\n`;
+  for (const l of lines) {
+    if ((body + l).length > maxChars) break;
+    body += l + "\n";
+  }
+  return body;
+}
+
 const TABS = [
   ["read", "읽기"],
   ["talk", "질의응답"],
@@ -1471,25 +1499,11 @@ export default function App() {
                 <button
                   className="paste__btn"
                   onClick={() => {
-                    // mailto 는 서버 없이 메일 앱을 여는 표준 방식입니다. 본문
-                    // 길이 제한이 빡빡해 최근 30건을 한 줄 요약으로 담습니다.
-                    let entries = [];
-                    try {
-                      entries = JSON.parse(localStorage.getItem("nt-errlog") || "[]");
-                    } catch {
-                      entries = [];
-                    }
-                    if (!entries.length) {
+                    // mailto 는 서버 없이 메일 앱을 여는 표준 방식입니다.
+                    const body = summarizeErrLog(1700);
+                    if (!body) {
                       setLogMsg("보낼 기록이 없습니다.");
                       return;
-                    }
-                    const lines = entries
-                      .slice(0, 30)
-                      .map((e) => `${(e.t || "").slice(0, 16)} [${e.kind}] ${e.where}: ${e.msg}`);
-                    let body = `News Tuner 오류 기록 (최근 ${lines.length}건)\n\n`;
-                    for (const l of lines) {
-                      if ((body + l).length > 1700) break;
-                      body += l + "\n";
                     }
                     location.href =
                       `mailto:${REPORT_EMAIL()}?subject=${encodeURIComponent("News Tuner 오류 기록")}` +
@@ -1499,6 +1513,38 @@ export default function App() {
                 >
                   메일로 보내기
                 </button>
+                {REPORT_FORM.formId && REPORT_FORM.entryId && (
+                  <button
+                    className="paste__btn"
+                    onClick={async () => {
+                      const body = summarizeErrLog(4000);
+                      if (!body) {
+                        setLogMsg("보낼 기록이 없습니다.");
+                        return;
+                      }
+                      try {
+                        // no-cors 라 응답을 읽을 수 없어 성공을 확인하지는 못하지만,
+                        // 구글 폼 formResponse 는 이 방식의 전송을 받아 줍니다.
+                        await fetch(
+                          `https://docs.google.com/forms/d/e/${REPORT_FORM.formId}/formResponse`,
+                          {
+                            method: "POST",
+                            mode: "no-cors",
+                            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                            body: new URLSearchParams({
+                              [`entry.${REPORT_FORM.entryId}`]: body,
+                            }),
+                          }
+                        );
+                        setLogMsg("전송했습니다. 폼 응답함으로 들어갑니다.");
+                      } catch {
+                        setLogMsg("전송하지 못했습니다. 메일로 보내기를 이용해 주세요.");
+                      }
+                    }}
+                  >
+                    바로 전송
+                  </button>
+                )}
                 <button
                   className="paste__btn"
                   onClick={() => {

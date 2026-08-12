@@ -191,6 +191,19 @@ worker/                  선택 사항. 키를 기기에 두지 않는 프록시
 매체를 추가하면 `api/_shared.js` 의 `ALLOWED_HOSTS` 도 `src/App.jsx` 의 domain 과
 같게 고쳐야 합니다.
 
+## 부록 C — 오류 기록 "바로 전송" 켜기 (구글 폼)
+
+설정 탭의 오류 기록은 기본으로 mailto(메일 앱 열기)로 보냅니다. 메일 앱을 거치지
+않는 무음 전송을 원하면 구글 폼을 하나 만들어 연결합니다. 서버도 API 키도 없습니다.
+
+1. [forms.google.com](https://forms.google.com) 에서 새 폼 → **장문형 질문 1개** 추가
+2. 폼의 **응답 탭 → ⋮ → 새 응답에 대한 이메일 알림 받기** 켜기 ← Gmail 로 알림이 옵니다
+3. 보내기 → 링크에서 `…/d/e/`**긴문자열**`/viewform` 의 긴 문자열이 `formId`
+4. ⋮ → **미리 채워진 링크 받기** → 아무 값 입력 후 링크 생성 → 링크 속 `entry.`**숫자** 가 `entryId`
+5. `src/App.jsx` 상단 `REPORT_FORM` 에 두 값을 채우고 push
+
+채우면 설정 탭에 "바로 전송" 버튼이 나타나고, 기록이 폼 응답함(+시트)으로 쌓입니다.
+
 ## 부록 B — Cloudflare Workers 로 두기 (대안)
 
 `worker/index.js`를 Cloudflare Workers에 올리면 키가 폰이 아니라 Cloudflare에 저장됩니다.
