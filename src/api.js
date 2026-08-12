@@ -723,6 +723,19 @@ FACTS — what has to be exactly right
   Reversing who demanded and who refused is a factual error, not a wording choice.
 - Attribute every claim, argument and figure to whoever actually made it. Never merge two
   people's positions into one, and never move one source's argument to a different speaker.
+- Findings the story credits to earlier work stay credited to earlier work. If a mechanism
+  was established by previous research and a named scientist is quoted saying something
+  else about it, do not fold the two together so the quote appears to be that person's
+  finding. A quotation supports only what that person actually said.
+- Where and when a thing happens is a fact, not a scene-setting phrase. Attach a circumstance
+  — during an outbreak, in the body, after a meal, at the plant — only to the step the source
+  attaches it to. A toxin that enters people through contaminated food is not a toxin that
+  acts "during" the bloom that produced it; sliding the qualifier onto the wrong step invents
+  a causal chain the source does not report.
+- Do not sharpen a fact with detail you were not given. If the source says "breathing
+  support", write breathing support, not "mechanical ventilation"; if it says a toxin gets
+  into shellfish, do not explain how it accumulates there. Filling in the plausible specific
+  is inventing, even when the specific happens to be true.
 - The date on an article is when it was published, nothing more. Do not turn it into the date
   of an event. If an article dated 7 August reports that researchers announced something,
   that does not mean they announced it on 7 August — the announcement may be months older.
@@ -763,6 +776,14 @@ SHAPE — how the article is built
   is usually where its news lives (unpublished results, this year's developments), so
   reaching it is not optional. Running out of room having covered only the opening is a
   failed article, not a shorter one.
+- Limits are part of the finding. When the source says what is still unknown, what has not
+  been tested in humans, which harder case the result may not cover, or what makes the
+  experiment unlike real conditions, those go in your article — and so does the outside
+  researcher, not involved in the work, whom the story brings in to weigh it. Journals and
+  reporters put that material near the end, which is exactly where a rewrite that runs out
+  of room drops it. Cutting it does not shorten the story, it changes the claim: your
+  article must not read as more confident about the result than the source is. Give the
+  caveats their own paragraph rather than a trailing clause.
 - If the headline joins ideas with "or", "and", "but" or "vs", every element it names must
   appear in your article. A piece titled "Pain or Pleasure" that never mentions pleasure has
   failed, whatever else it got right.
