@@ -185,6 +185,10 @@ function apiError(res, body) {
     }
     // 어떤 한도였는지 남겨야 나중에 원인을 짚을 수 있습니다.
     if (quotaId) message += ` [${quotaId}]`;
+  } else if (res.status === 503 || res.status === 529 || res.status === 500) {
+    // 모델 쪽 혼잡·일시 장애입니다. 요청 자체가 처리되지 않은 것이라 기다렸다
+    // 다시 부르면 대개 풀립니다. 영어 원문을 그대로 보여줄 이유가 없습니다.
+    message = "모델이 혼잡합니다. 잠시 후 자동으로 다시 시도했지만 실패했습니다. 조금 뒤에 다시 눌러 주세요.";
   } else {
     message = `요청 실패 (${res.status}) ${detail}`.trim();
   }
@@ -249,6 +253,13 @@ async function gemini({
   };
 
   let { res, data } = await send();
+
+  // 503 과 529 는 모델 쪽이 혼잡해 요청이 처리되지 못한 것입니다. 과금도 되지
+  // 않았으므로 잠깐 기다렸다 다시 부릅니다. 두 번까지, 간격을 늘려 가며.
+  for (let wait = 1500; (res.status === 503 || res.status === 529) && wait <= 3000; wait += 1500) {
+    await sleep(wait);
+    ({ res, data } = await send());
+  }
 
   // 분당 한도는 몇 초만 기다리면 풀립니다. 하루 한도는 기다려도 소용없으니
   // 그대로 알립니다. 사용자가 버튼을 다시 누르게 하면 한도만 더 깎입니다.
