@@ -485,6 +485,15 @@ a {
   color: var(--signal);
 }
 
+.disclaimer {
+  margin-top: 18px;
+  padding-top: 12px;
+  border-top: 1px solid var(--paper-line);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--paper-dim);
+}
+
 .related {
   margin-top: 28px;
   padding-top: 16px;

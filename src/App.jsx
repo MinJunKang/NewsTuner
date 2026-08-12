@@ -1124,6 +1124,13 @@ export default function App() {
 
                 {article.summaryKo && <p className="summary">{article.summaryKo}</p>}
 
+                {/* 붙여넣은 원문에는 붙이지 않습니다. 그쪽은 기자가 쓴 글 그대로입니다. */}
+                {!article.pasted && (
+                  <p className="disclaimer">
+                    * AI가 재작성한 글로 원문과 다를 수 있습니다.
+                  </p>
+                )}
+
                 {article.keywords?.length > 0 && (
                   <div className="keys">
                     <p className="keys__label">KEY WORDS</p>
