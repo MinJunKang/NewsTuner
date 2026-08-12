@@ -208,8 +208,9 @@ const ARTICLE_SCHEMA = {
     error: {
       type: "string",
       description:
-        'Leave this out entirely unless no suitable article was found. If none was found, ' +
-        'set it to "no suitable article found" and leave every other field empty.',
+        'Last resort only. Leave this out entirely whenever you have any usable article. ' +
+        'Set it to "no suitable article found" only after several searches with different ' +
+        'wording turned up nothing, and then leave every other field empty.',
     },
     url: {
       type: "string",
@@ -328,19 +329,18 @@ ${focusLine}`;
 
   const prompt = `${intro}
 Choosing which story to report
-- Your search will turn up pages that are not articles. Check each candidate before you
-  settle on it, discard the ones that fail, and move on to the next candidate. Do not report
-  the first thing you find, and do not give up after one failed candidate.
-- Take a candidate only if it is a narrative news article: written by a named reporter or a
-  wire service, and published once on a fixed date.
-- Discard election guides, results dashboards, topic or tag hubs, category and section
-  pages, live blogs, and any page that is updated continuously. They have no fixed
-  publication date and their content changes after you read them. Discard photo galleries,
-  video pages and podcast episode pages too — there is no article text to report.
-- Among the candidates that survive, prefer the one with the most substantial reporting
-  rather than the shortest or the most recent.
-- Only if you have worked through the candidates and none survives, set "error" to
-  "no suitable article found" and leave the other fields empty.
+- Discard pages that are not articles at all: election guides, results dashboards, topic or
+  tag hubs, category and section pages, live blogs, photo galleries, video pages and podcast
+  episode pages. You can usually tell from the title and the address. Move on to the next
+  candidate rather than reporting one of these.
+- Everything else is fair game. Prefer a story that shows a publication date and, where it
+  is shown, a reporter's or wire service's name — but do not reject a story just because the
+  search result did not display a byline. Most articles will not show you one.
+- Among the candidates left, prefer the one with the most substantial reporting rather than
+  the shortest or the most recent.
+- "error" is a last resort, not a first response. Use it only after you have run several
+  searches with different wording and still found no usable article. If you have any usable
+  article at all, report it.
 
 Then write YOUR OWN English article reporting that story.
 
@@ -537,9 +537,10 @@ Search ${source.label}'s own site: put site:${source.domain} in your queries and
 with different wording. Every story you list must live on ${source.domain}. Do not fill the
 list out with another outlet's coverage of the same events.
 ${focusLine}
-Only list narrative news articles: written by a named reporter or a wire service, published
-once on a fixed date. Skip election guides, results dashboards, topic or tag hubs, category
-pages, live blogs and any continuously updated page.
+Skip pages that are not articles: election guides, results dashboards, topic or tag hubs,
+category and section pages, live blogs, photo galleries, video pages and podcast episode
+pages. Everything else is fair game — do not skip a story just because the search result did
+not display a byline.
 
 List up to 5 stories, most relevant first. Use each story's own published headline exactly as
 it appears — do not rewrite or translate it in the "title" field. Every story needs a real
