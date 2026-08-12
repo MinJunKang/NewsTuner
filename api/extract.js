@@ -63,7 +63,7 @@ export function extractArticle(html) {
   }
 
   // 본문 끝에 달리는 상용구(댓글 정책, 저작권, 구독 권유)를 꼬리에서 걷어냅니다.
-  const TAIL = /moderates comments|all rights reserved|sign up for|originally (appeared|published)|newsletter|delivered to your (e-?mail |in)?box|get highlights of/i;
+  const TAIL = /moderates comments|all rights reserved|sign up for|originally (appeared|published)|newsletter|delivered to your (e-?mail |in)?box|get highlights of|isn't possible without your support|journalism changes lives|already a subscriber|subscribe to continue/i;
   while (paragraphs.length && TAIL.test(paragraphs[paragraphs.length - 1])) paragraphs.pop();
 
   const og = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i);
