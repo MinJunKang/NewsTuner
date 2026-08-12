@@ -168,6 +168,9 @@ async function fetchFullText(url, proxy, proxyToken) {
     });
     if (!res.ok) return null;
     const data = await res.json();
+    // 원문 서버가 404/410 을 줬다면 이 주소는 확실히 죽은 것입니다. 검색으로
+    // 우회해 쓰면 죽은 링크 밑에 기사가 붙으므로, 후보 폐기 신호를 돌려줍니다.
+    if (/40[41]|410/.test(data?.error?.message || "")) return { dead: true };
     const paragraphs = (Array.isArray(data?.paragraphs) ? data.paragraphs : [])
       .map(stripMarkers)
       .filter(Boolean);
@@ -777,6 +780,11 @@ ${full.paragraphs.join("\n\n")}`
     if (chosen?.url && proxy) {
       tick("기사 전문을 가져오는 중…");
       full = await fetchFullText(chosen.url, proxy, proxyToken);
+      if (full?.dead) {
+        // 주소가 죽어 있으면 이 후보로는 기사를 쓰지 않습니다. 다음 후보로.
+        logIssue("후보주소사망", source?.id, chosen.url);
+        return { fail: "error" };
+      }
       tick(
         full
           ? `전문 ${full.paragraphs.length}문단 확보 · 다시 쓰는 중…`
@@ -1144,10 +1152,14 @@ Reply with JSON and nothing else:
     proxy,
     proxyToken
   );
-  // 전부 죽었다는 판정은 검사기 쪽 오판(사이트가 확인 요청만 다르게 취급)일
-  // 가능성이 실제 전멸보다 높습니다. 그때는 판정을 버리고 목록을 살립니다.
+  // 검사기가 정상 응답으로 전멸을 선고했다면 그것은 진실입니다. 모델이 목록
+  // 전체를 지어냈을 때가 그렇습니다(SciNews 에서 실제 발생). 예전에는 오판으로
+  // 보고 목록을 살렸는데, 그 가드가 지어낸 주소를 통과시켰습니다. 검사기 자체가
+  // 실패하면 dead 가 null 이라 어차피 검사를 건너뜁니다.
   const alive = dead ? list.filter((s) => !dead.has(s.url)) : list;
-  const top = (alive.length ? alive : list).slice(0, 5);
+  if (dead && list.length && !alive.length)
+    logIssue("목록전멸", source?.id, `${list.length}건 전부 사망 판정 — 지어낸 목록으로 봄`);
+  const top = alive.slice(0, 5);
 
   if (!top.length) {
     // 다음 보고 때 어느 단계에서 비었는지 바로 알 수 있게 남깁니다.
