@@ -211,6 +211,12 @@ const ARTICLE_SCHEMA = {
         'Leave this out entirely unless no suitable article was found. If none was found, ' +
         'set it to "no suitable article found" and leave every other field empty.',
     },
+    url: {
+      type: "string",
+      description:
+        "The exact address of the story as it appeared in your search results. Never " +
+        "assemble, guess or complete an address — leave it as an empty string instead.",
+    },
     title: { type: "string", description: "The English headline you wrote." },
     titleKo: { type: "string", description: "KOREAN ONLY. The headline in Korean." },
     outlet: { type: "string", description: "The publication the story came from." },
@@ -313,11 +319,11 @@ Report on that exact story, not a different one.
 `
     : `Use Google Search to find a real story published in ${recency} by ${source.label} on the topic: ${topic}.
 
-Search ${source.label}'s own site. Put site:${source.domain} in your search queries, and run
-more than one query with different wording before deciding. Every candidate must live on
-${source.domain}. If another outlet covered the same event, that does not count — you need
-${source.label}'s own reporting. If ${source.label} has not covered this topic in ${recency},
-say so with "error" rather than substituting another outlet.
+Start by searching ${source.label}'s own site: put site:${source.domain} in your query. Run
+more than one query with different wording before deciding. If that operator returns nothing
+useful, search again without it, but still take only stories published on ${source.domain} —
+another outlet's coverage of the same event does not count. If ${source.label} has not
+covered this topic in ${recency}, say so with "error" rather than substituting another outlet.
 ${focusLine}`;
 
   const prompt = `${intro}
@@ -382,6 +388,7 @@ Reply with JSON and nothing else. No markdown fences, no preamble.
  "title": "the English headline you wrote",
  "titleKo": "한국어 제목",
  "outlet": "${source.label}",
+ "url": "exact address of the story, or an empty string if you do not have it",
  "published": "YYYY-MM-DD",
  "summaryKo": "한 문장 한국어 요약",
  "paragraphs": ["...", "...", "..."],
@@ -412,12 +419,27 @@ above. Exclude the story you just reported. If you found no others, use an empty
   // 검색 그라운딩과 스키마를 함께 쓰는 것은 아직 미리보기 단계라, 거부당하면
   // 스키마 없이 한 번 더 시도합니다. 프롬프트에 형식이 그대로 적혀 있어
   // 그 경로로도 동작합니다.
+  const grounded = (c) => (c?.groundingMetadata?.groundingChunks || []).length > 0;
+
   let text, cand;
   try {
     ({ text, cand } = await call(ARTICLE_SCHEMA));
   } catch (e) {
     if (e.status !== 400 || !/schema|response_?format/i.test(e.message)) throw e;
     ({ text, cand } = await call(undefined));
+  }
+
+  // 스키마와 검색 그라운딩을 함께 쓰는 것은 아직 미리보기라, 긴 글에서 그라운딩
+  // 정보가 빠져 오는 경우가 있습니다. 출처가 없으면 기사를 막게 되어 있으므로,
+  // 스키마 없이 한 번 더 불러 봅니다. 형식은 프롬프트에도 적혀 있어 그 경로로도
+  // 나옵니다. 실패하면 처음 받은 응답을 그대로 씁니다.
+  if (!grounded(cand)) {
+    try {
+      const plain = await call(undefined);
+      if (grounded(plain.cand)) ({ text, cand } = plain);
+    } catch {
+      /* 처음 응답을 그대로 씁니다 */
+    }
   }
 
   const article = extractJson(text);
@@ -444,14 +466,16 @@ above. Exclude the story you just reported. If you found no others, use an empty
     .filter((c) => c && c.uri)
     .slice(0, 4);
 
-  // 모델이 적어 낸 주소는 쓰지 않습니다. 지어낸 주소는 도메인은 맞고 슬러그만
-  // 가짜인 경우가 많아 도메인 검사로도 걸러지지 않고, 눌러야 404 임을 압니다.
-  // 그라운딩 주소는 구글이 실제로 열어본 것이라 존재가 보장됩니다.
-  article.url = article.sources[0]?.uri || "";
+  // 그라운딩 주소가 1순위입니다. 구글이 실제로 열어본 것이라 존재가 보장됩니다.
+  // 그것이 비어 있을 때만 모델이 적어 낸 주소를 발행사 도메인 검사 후 씁니다.
+  // 도메인 검사는 지어낸 주소를 다 걸러내지는 못하지만, 아무 링크도 없는 것보다는
+  // 낫습니다. 둘 다 없을 때만 기사를 막습니다.
+  article.url = article.sources[0]?.uri || onDomain(article.url, source.domain) || "";
 
-  // 출처가 없으면 원문과 대조할 길이 없습니다. 검증할 수 없는 기사를 보여주는 것은
-  // 이 앱의 전제를 무너뜨리므로, 본문이 멀쩡해도 표시하지 않습니다.
-  if (!article.url) throw new Error("출처를 확인할 수 없어 기사를 표시하지 않습니다.");
+  if (!article.url)
+    throw new Error(
+      "출처를 확인할 수 없어 기사를 표시하지 않습니다. 다시 시도하거나 길이를 줄여 보세요."
+    );
 
   article.related = (Array.isArray(article.related) ? article.related : [])
     .map((r) => ({
