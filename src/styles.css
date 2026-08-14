@@ -1,3 +1,11 @@
+/* 색을 쓰는 자리는 네 곳뿐입니다. 그 밖의 모든 강조는 밝기로만 합니다.
+   ① 계기 표시(다이얼 바늘·눈금·LED·주파수·수신 중 표시)
+   ② 실제 링크(원문 기사, 출처)
+   ③ 주 액션 버튼(주파수 맞추기, 보내기)
+   ④ 포커스 링
+   고른 칩, 현재 탭, 상태 메시지, 사전 뜻풀이는 색이 아니라 밝기로 구분합니다.
+   액센트를 화면 전체에 뿌리면 어떤 색이든 대시보드 템플릿처럼 보이고, 무엇보다
+   진짜 경고(출처 미확인)가 묻힙니다. 색이 드물어야 다이얼이 계기로 읽힙니다. */
 :root {
   --bg: #0b0f14;
   --panel: #131b23;
@@ -16,6 +24,13 @@
   --mark: #f0dd8f;
   --mark2: #a9ddd3;
   --mark-ink: #1a1d21;
+  /* 종이(기사) 위에서 쓰는 액센트입니다. 크롬의 --signal 은 밝은 민트라
+     크림색 배경에서는 대비가 1.6:1 밖에 안 나와 사실상 안 보입니다.
+     기사 영역의 링크와 경고는 반드시 이 두 개를 써야 합니다. */
+  --paper-accent: #0d7a6a;
+  --paper-warn: #b3392a;
+  /* 고른 항목을 표시하는 중립 바탕. 색 대신 밝기로 구분합니다. */
+  --on-bg: rgba(255, 255, 255, 0.07);
   --mono: "IBM Plex Mono", ui-monospace, monospace;
   --serif: "Newsreader", Georgia, serif;
   --sans: "Inter", system-ui, sans-serif;
@@ -202,7 +217,7 @@ a {
 .link {
   font-family: var(--mono);
   font-size: 11px;
-  color: var(--signal);
+  color: var(--ink);
 }
 
 .row {
@@ -254,9 +269,9 @@ a {
 }
 
 .chip--on {
-  border-color: var(--signal);
-  color: var(--signal);
-  background: rgba(61, 219, 192, 0.09);
+  border-color: var(--ink);
+  color: var(--ink);
+  background: var(--on-bg);
 }
 
 .hint {
@@ -285,17 +300,20 @@ a {
   color: var(--faint);
 }
 
+/* 기사 안에 있으므로 종이용 액센트를 씁니다. --signal 을 쓰면 크림색 위의
+   밝은 민트가 되어 링크가 보이지 않습니다. */
 .article__origin {
   display: inline-block;
   margin-top: 10px;
   font-family: var(--mono);
   font-size: 11px;
-  color: var(--signal);
+  color: var(--paper-accent);
 }
 
-/* 단순한 빈칸이 아니라 주의 신호이므로 흐리게 두지 않습니다. */
+/* 단순한 빈칸이 아니라 주의 신호이므로 흐리게 두지 않습니다. 화면에서 색을
+   걷어낸 만큼 이 경고가 유일한 붉은 글자가 되어 오히려 눈에 들어옵니다. */
 .article__origin--none {
-  color: var(--warn);
+  color: var(--paper-warn);
 }
 
 .vocab__bar {
@@ -315,8 +333,8 @@ a {
 }
 
 .vocab__bar button:hover:not(:disabled) {
-  border-color: var(--signal);
-  color: var(--signal);
+  border-color: var(--faint);
+  color: var(--ink);
 }
 
 .vocab__bar button:disabled {
@@ -331,7 +349,7 @@ a {
   padding: 8px 20px 0;
   font-family: var(--mono);
   font-size: 11px;
-  color: var(--signal);
+  color: var(--dim);
 }
 
 .paste {
@@ -428,7 +446,7 @@ a {
 }
 
 .howto[open] summary {
-  color: var(--signal);
+  color: var(--ink);
   margin-bottom: 8px;
 }
 
@@ -482,8 +500,8 @@ a {
 }
 
 .paste__btn:hover {
-  border-color: var(--signal);
-  color: var(--signal);
+  border-color: var(--faint);
+  color: var(--ink);
 }
 
 .disclaimer {
@@ -495,10 +513,12 @@ a {
   color: var(--paper-dim);
 }
 
+/* 관련 기사 목록은 기사(종이) 안에 있습니다. 크롬 토큰을 쓰면 밝은 종이 위에
+   흰 글자가 얹혀 제목이 보이지 않습니다. 반드시 paper 계열만 씁니다. */
 .related {
   margin-top: 28px;
   padding-top: 16px;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--paper-line);
 }
 
 .related ul {
@@ -511,7 +531,7 @@ a {
   align-items: baseline;
   gap: 10px;
   padding: 9px 0;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--paper-line);
 }
 
 .related li button {
@@ -528,21 +548,22 @@ a {
   display: block;
   font-size: 14px;
   line-height: 1.45;
-  color: var(--ink);
+  color: var(--paper-ink);
 }
 
 .related__ko {
   display: block;
   margin-top: 2px;
   font-size: 12px;
-  color: var(--dim);
+  color: var(--paper-dim);
 }
 
+/* "원문" 은 실제 링크이므로 색을 남기는 네 자리 중 하나입니다. */
 .related__src {
   flex: none;
   font-family: var(--mono);
   font-size: 10px;
-  color: var(--faint);
+  color: var(--paper-accent);
 }
 
 .btn {
@@ -651,6 +672,10 @@ a {
   --paper-ink: #dde2e6;
   --paper-dim: #8794a0;
   --paper-line: #29343e;
+  /* 밝은 종이용 액센트를 그대로 두면 어두운 종이 위에서 3.6:1 까지 떨어져
+     11px 링크가 읽히지 않습니다. 같은 계열로 밝기만 올립니다. */
+  --paper-accent: #4bab99;
+  --paper-warn: #ff7a6b;
 }
 
 .article__meta {
@@ -662,8 +687,9 @@ a {
   color: var(--paper-dim);
 }
 
+/* 매체명은 링크가 아니라 정보입니다. 색 대신 밝기로 옆의 날짜와 구분합니다. */
 .article__outlet {
-  color: #0d7a6a;
+  color: var(--paper-ink);
 }
 
 .article__title {
@@ -737,9 +763,9 @@ a {
 }
 
 .article__modes .chip--on {
-  border-color: #0d7a6a;
-  color: #0d7a6a;
-  background: rgba(13, 122, 106, 0.08);
+  border-color: var(--paper-ink);
+  color: var(--paper-ink);
+  background: transparent;
 }
 
 .body {
@@ -778,10 +804,10 @@ a {
 .summary {
   margin: 22px 0 0;
   padding: 8px 0 8px 13px;
-  border-left: 2px solid #0d7a6a;
+  border-left: 2px solid var(--paper-dim);
   font-size: 13.5px;
   line-height: 1.7;
-  color: #4b5158;
+  color: var(--paper-dim);
 }
 
 .keys {
@@ -814,14 +840,14 @@ a {
   font-family: var(--serif);
   font-size: 16px;
   text-decoration: underline;
-  text-decoration-color: #0d7a6a;
+  text-decoration-color: var(--paper-dim);
   text-decoration-thickness: 2px;
   text-underline-offset: 4px;
 }
 
 .keys span {
   font-size: 13px;
-  color: #5b6169;
+  color: var(--paper-dim);
 }
 
 .sources {
@@ -832,7 +858,7 @@ a {
 }
 
 .sources a {
-  color: #0d7a6a;
+  color: var(--paper-accent);
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -850,7 +876,7 @@ a {
   max-height: 62vh;
   overflow-y: auto;
   background: var(--panel);
-  border-top: 2px solid var(--signal);
+  border-top: 2px solid var(--faint);
   padding: 12px 16px 18px;
   box-shadow: 0 -18px 40px rgba(0, 0, 0, 0.55);
   animation: rise 0.18s ease-out;
@@ -914,9 +940,11 @@ a {
   color: var(--faint);
 }
 
+/* 뜻풀이는 이 시트의 본론입니다. 액션이 아니라 내용이므로 색이 아니라
+   크기와 밝기로 주변보다 앞에 세웁니다. */
 .k-ko {
   font-size: 16px;
-  color: var(--signal);
+  color: var(--ink);
 }
 
 .k-en {
@@ -944,12 +972,12 @@ a {
 
 .save {
   margin-top: 10px;
-  border: 1px solid var(--signal);
+  border: 1px solid var(--faint);
   border-radius: 3px;
   padding: 7px 13px;
   font-family: var(--mono);
   font-size: 11px;
-  color: var(--signal);
+  color: var(--ink);
 }
 
 .save:disabled {
@@ -975,10 +1003,12 @@ a {
   white-space: pre-wrap;
 }
 
+/* 내 말풍선이 액센트 색 덩어리였습니다. 대화가 길어질수록 화면의 색 대부분을
+   차지해서, 왼쪽·오른쪽 구분만 남기고 색은 걷어냅니다. */
 .bubble--me {
   align-self: flex-end;
-  background: rgba(61, 219, 192, 0.13);
-  color: #c8f5ec;
+  background: var(--on-bg);
+  color: var(--ink);
 }
 
 .bubble--ai {
@@ -997,7 +1027,7 @@ a {
 }
 
 .seed:hover {
-  border-color: var(--signal);
+  border-color: var(--faint);
   color: var(--ink);
 }
 
@@ -1079,7 +1109,7 @@ a {
   margin-left: 8px;
   font-family: var(--mono);
   font-size: 10px;
-  color: var(--signal);
+  color: var(--faint);
   white-space: nowrap;
 }
 
@@ -1183,8 +1213,8 @@ a {
 }
 
 .nav button[aria-current="true"] {
-  color: var(--signal);
-  box-shadow: inset 0 2px 0 var(--signal);
+  color: var(--ink);
+  box-shadow: inset 0 2px 0 var(--ink);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -991,7 +991,7 @@ export default function App() {
           {panelOpen && (
             <>
               <details className="howto howto--guide">
-                <summary>각 항목이 무슨 뜻인가요?</summary>
+                <summary>사용방법</summary>
                 <ul>
                   <li>
                     <b>분야</b> — 어떤 종류의 글을 읽을지 고릅니다. 고르면 그 분야를 잘 쓰는
