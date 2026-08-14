@@ -218,13 +218,10 @@ function summarizeErrLog(maxChars) {
   return body;
 }
 
-// since 이후의 사용량 기록만 돌려줍니다. 자동 전송이 이미 보낸 구간을 다시
-// 보내지 않도록 마지막 전송 시각으로 자릅니다.
-function usageEntries(since) {
+function usageEntries() {
   try {
     const arr = JSON.parse(localStorage.getItem("nt-usagelog") || "[]");
-    if (!Array.isArray(arr)) return [];
-    return since ? arr.filter((e) => (e?.t || "") > since) : arr;
+    return Array.isArray(arr) ? arr : [];
   } catch {
     return [];
   }
@@ -233,8 +230,8 @@ function usageEntries(since) {
 // 토큰 사용량을 단계별로 합쳐 한 장으로 만듭니다. 개별 호출을 그대로 보내면
 // 수백 줄이 되고, 정작 알고 싶은 것("어느 단계가 비용을 먹나")은 안 보입니다.
 // 숫자와 모델 이름만 담습니다. 기사 본문, 검색어, 단어, 주소는 담지 않습니다.
-function summarizeUsageLog(maxChars, since) {
-  const entries = usageEntries(since);
+function summarizeUsageLog(maxChars) {
+  const entries = usageEntries();
   if (!entries.length) return null;
 
   const groups = new Map();
@@ -613,8 +610,6 @@ export default function App() {
   const [saveFailed, setSaveFailed] = useState(false);
   const [logMsg, setLogMsg] = useState("");
   const [usageMsg, setUsageMsg] = useState("");
-  // 사용량 통계 전송 여부. 설정에서 언제든 끌 수 있고, 끄면 기록은 기기에만 남습니다.
-  const [usageSend, setUsageSend] = useState(() => load("nt-usage-send", true));
   const [ioMsg, setIoMsg] = useState("");
   const fileRef = useRef(null);
 
@@ -644,23 +639,6 @@ export default function App() {
   useEffect(() => {
     chatEnd.current?.scrollIntoView({ behavior: "smooth" });
   }, [chat, chatBusy]);
-  useEffect(() => {
-    save("nt-usage-send", usageSend);
-  }, [usageSend]);
-
-  // 사용량 통계 자동 전송. 하루에 한 번, 새 기록이 20건 넘게 쌓였을 때만 보냅니다.
-  // 보낸 시각을 남겨 두고 그 뒤에 쌓인 것만 다음 전송에 담으므로 같은 호출이 두
-  // 번 가지 않습니다. 실패하면 조용히 넘어가고 다음 실행에서 다시 시도합니다.
-  useEffect(() => {
-    if (!usageSend || !USAGE_FORM.formId || !USAGE_FORM.entryId) return;
-    const since = load("nt-usage-sent", "");
-    if (since && Date.now() - Date.parse(since) < 24 * 60 * 60 * 1000) return;
-    if (usageEntries(since).length < 20) return;
-    const stamp = new Date().toISOString();
-    postToForm(USAGE_FORM, summarizeUsageLog(4000, since)).then((ok) => {
-      if (ok) save("nt-usage-sent", stamp);
-    });
-  }, [usageSend]);
 
   const ready = keys.proxy || !!keys.gemini;
 
@@ -1665,15 +1643,7 @@ export default function App() {
             </div>
 
             <div className="field">
-              <label>사용량 통계</label>
-              <div className="row__chips">
-                <Chip on={usageSend} onClick={() => setUsageSend(true)}>
-                  보내기
-                </Chip>
-                <Chip on={!usageSend} onClick={() => setUsageSend(false)}>
-                  보내지 않기
-                </Chip>
-              </div>
+              <label>사용량 기록</label>
               <div className="row__chips">
                 <button
                   className="paste__btn"
@@ -1702,13 +1672,10 @@ export default function App() {
                         setUsageMsg("보낼 기록이 없습니다.");
                         return;
                       }
-                      const stamp = new Date().toISOString();
-                      const ok = await postToForm(USAGE_FORM, body);
-                      if (ok) save("nt-usage-sent", stamp);
                       setUsageMsg(
-                        ok
-                          ? "전송했습니다."
-                          : "전송하지 못했습니다. 연결을 확인한 뒤 다시 시도해 주세요."
+                        (await postToForm(USAGE_FORM, body))
+                          ? "전송했습니다. 폼 응답함으로 들어갑니다."
+                          : "전송하지 못했습니다. 연결을 확인한 뒤 다시 시도하거나, 복사해서 직접 전해 주세요."
                       );
                     }}
                   >
@@ -1728,11 +1695,11 @@ export default function App() {
               </div>
               {usageMsg && <p className="io-msg" style={{ padding: "6px 0 0" }}>{usageMsg}</p>}
               <small>
-                어느 기능이 토큰을 얼마나 쓰는지 모아 앱 개선에 씁니다. 보내는 것은 호출
-                시각, 모델 이름, 단계 이름(기사 집필·단어 풀이 같은), 토큰 수뿐입니다.
-                기사 본문, 검색어, 찾아본 단어, API 키는 보내지 않습니다. "보내기"로 두면
-                하루 한 번 자동으로 전송되고, "보내지 않기"로 바꾸면 기록은 이 기기에만
-                남습니다. "복사"를 누르면 보내는 내용을 그대로 확인할 수 있습니다.
+                어느 기능이 토큰을 얼마나 쓰는지 이 기기에만 남습니다. 자동으로 전송되지
+                않으며, "바로 전송"을 누르면 단계별 집계가 개발자에게 전달되어 비용 개선에
+                반영됩니다. 담기는 것은 호출 시각, 모델 이름, 단계 이름(기사 집필·단어
+                풀이 같은), 토큰 수뿐입니다. 기사 본문, 검색어, 찾아본 단어, API 키는
+                담기지 않으며, "복사"를 누르면 보내는 내용을 그대로 확인할 수 있습니다.
               </small>
             </div>
 
