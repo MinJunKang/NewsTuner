@@ -325,6 +325,32 @@ export function logIssue(kind, where, message) {
   }
 }
 
+// 호출 한 건이 실제로 몇 토큰을 썼는지 기기에 남깁니다. 어느 단계(purpose)가
+// 비용을 먹는지는 추정으로는 알 수 없고, 특히 생각 토큰(thoughts)과 검색 주입
+// 입력(toolUse)은 화면 어디에도 드러나지 않습니다. 기사 본문이나 검색어 같은
+// 내용은 단 한 글자도 담지 않습니다. 숫자와 모델 이름뿐입니다. 400건 상한.
+export function logUsage(model, purpose, u) {
+  if (!u) return;
+  try {
+    const key = "nt-usagelog";
+    const arr = JSON.parse(localStorage.getItem(key) || "[]");
+    arr.unshift({
+      t: new Date().toISOString(),
+      m: model, // 모델 이름
+      p: purpose || "", // 어느 단계에서 부른 호출인지
+      in: u.promptTokenCount || 0, // 입력
+      cache: u.cachedContentTokenCount || 0, // 그중 캐시로 할인된 몫
+      tool: u.toolUsePromptTokenCount || 0, // 검색 결과가 입력으로 주입된 몫
+      think: u.thoughtsTokenCount || 0, // 생각 (출력 단가로 청구됩니다)
+      out: u.candidatesTokenCount || 0, // 본문 출력
+      total: u.totalTokenCount || 0,
+    });
+    localStorage.setItem(key, JSON.stringify(arr.slice(0, 400)));
+  } catch {
+    /* 기록 실패가 본 작업을 막으면 안 됩니다 */
+  }
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const findDetail = (details, type) =>
@@ -408,6 +434,7 @@ async function gemini({
   schema,
   maxOutputTokens,
   thinkingLevel,
+  purpose, // 사용량 기록에만 쓰입니다. 요청에는 들어가지 않습니다.
 }) {
   const url = proxy
     ? `${proxy.replace(/\/$/, "")}/gemini/${model}`
@@ -483,7 +510,10 @@ async function gemini({
 
   // 실제 토큰 사용량입니다. 비용 추정이 아니라 실측을 보려면 브라우저 콘솔에서
   // [nt-usage] 를 찾으면 됩니다. 화면이나 요청에는 아무 영향이 없습니다.
-  if (data.usageMetadata) console.debug("[nt-usage]", model, data.usageMetadata);
+  if (data.usageMetadata) {
+    console.debug("[nt-usage]", model, purpose, data.usageMetadata);
+    logUsage(model, purpose, data.usageMetadata);
+  }
 
   const cand = data.candidates?.[0];
   // 잘린 응답은 JSON 이 깨져서 파싱 단계에서 엉뚱한 오류로 보입니다. 여기서 먼저 알립니다.
@@ -565,6 +595,165 @@ const ARTICLE_SCHEMA = {
     "summaryKo", "paragraphs", "keywords", "related",
   ],
 };
+
+// 집필 규칙은 매체·난이도·길이와 무관하게 한 글자도 달라지지 않습니다. 그래서
+// 사용자 메시지가 아니라 시스템 지시로 보냅니다. 요청의 맨 앞이 매번 완전히
+// 같아지므로 Gemini 의 암시적 캐시가 이 3천 토큰 남짓을 계속 할인가로 받습니다.
+// 후보 2건 시도, 그라운딩 재시도, 연속 수신이 전부 같은 접두사를 씁니다.
+// 바뀌는 것(어느 기사, 어느 매체, 난이도, 분량)은 전부 아래 assignment 로 갑니다.
+// 규칙 안에 ${...} 를 하나라도 남기면 캐시가 통째로 깨지므로, 값이 필요한 자리는
+// "assignment 에 있다"고만 적습니다.
+const ARTICLE_RULES = `You re-report a news story in your own English, for a Korean learner of English.
+
+The assignment — which story, which outlet, what reading level, what length, and the JSON
+shape to reply in — comes in the message after these rules. These rules apply to every
+assignment.
+
+SOURCE — what you may draw on
+- Build the article from one source article, the one you opened. Other search results will
+  cover the same event; do not fold their details, figures or framing into it. If they say
+  something different, that is not yours to merge or reconcile.
+- Write only what your source reports. Do not add background, context, analysis or scene
+  detail out of your own knowledge, however likely it seems. If a fact is not in what you
+  read, it does not go in the article.
+- Never copy sentences or distinctive phrases from the source. Re-report the facts in fresh
+  wording.
+- Restructure freely. Do not follow the source's paragraph or sentence order, and do not
+  rebuild its sentences with words swapped out. Decide for yourself what to lead with.
+
+FACTS — what has to be exactly right
+- Copy the names of people, institutions, journals and instruments exactly as they appear,
+  accents and diacritics included — Börk, not Bork. Never reorder, translate, expand,
+  abbreviate or reconstruct a name, and never attach a person to a different institution
+  than the one the story gives them.
+- Copy figures exactly as the source states them. "50 years" must not soften into "more than
+  40 years"; a number the source commits to is not yours to round or hedge.
+- Whenever one party does something to another — demands, refuses, sanctions, sues, rejects,
+  pays — name both parties and check which way round it goes before writing the sentence.
+  Reversing who demanded and who refused is a factual error, not a wording choice.
+- Attribute every claim, argument and figure to whoever actually made it. Never merge two
+  people's positions into one, and never move one source's argument to a different speaker.
+- Findings the story credits to earlier work stay credited to earlier work. If a mechanism
+  was established by previous research and a named scientist is quoted saying something
+  else about it, do not fold the two together so the quote appears to be that person's
+  finding. A quotation supports only what that person actually said.
+- Where and when a thing happens is a fact, not a scene-setting phrase. Attach a circumstance
+  — during an outbreak, in the body, after a meal, at the plant — only to the step the source
+  attaches it to. A toxin that enters people through contaminated food is not a toxin that
+  acts "during" the bloom that produced it; sliding the qualifier onto the wrong step invents
+  a causal chain the source does not report.
+- Do not sharpen a fact with detail you were not given. If the source says "breathing
+  support", write breathing support, not "mechanical ventilation"; if it says a toxin gets
+  into shellfish, do not explain how it accumulates there. Filling in the plausible specific
+  is inventing, even when the specific happens to be true.
+- The date on an article is when it was published, nothing more. Do not turn it into the date
+  of an event. If an article dated 7 August reports that researchers announced something,
+  that does not mean they announced it on 7 August — the announcement may be months older.
+  Give a date for an event only when the story states that date; otherwise write the sentence
+  without a date rather than reaching for the one you have.
+- Quote a person directly only if you found that exact quote. Never invent a quote or put
+  words in a named person's mouth. When unsure, paraphrase with attribution.
+- An analogy or example belongs to whoever made it in the source. Never compose one and hand
+  it to a named person, or build a paragraph around a comparison the source does not contain.
+- Never number a problem, case, section or item unless the source gives that number. "Three
+  of the problems" stays three of the problems; inventing #146 and #183 to make it concrete
+  produces the kind of detail a reader repeats and is wrong about. Same for totals and dates
+  you did not read — do not round a count the source states precisely.
+- Report a survey, poll or consensus only if the source says one happened. People interviewed
+  are not people "surveyed". One named person's view stays theirs — never promote it to
+  "experts say", and keep any condition they attached to it.
+- Explain why something is so only where the source explains it. If it says one field proved
+  more approachable and does not say why, report that — do not supply a mechanism of your own.
+- Keep each quotation in the context where it appears. A quote said about one topic must not
+  be moved next to a different topic, where it would seem to be about that instead.
+- Keep the source's degree of certainty exactly. If researchers are "considering" or
+  "wondering about" something, do not upgrade it to "developing" or "building"; a "may" or
+  "could" must not become a "will". Firming up a hedge is a factual error.
+- The same in the other direction: what has already happened must not slide into the future
+  tense. Lawsuits that were filed are not lawsuits that "are expected"; a completed decision
+  is not "planned". Demoting a done fact to a forecast is a factual error too.
+- If the story shows genuine disagreement, report both positions, say who holds each, and
+  give the evidence each side cites — the figures, the studies, the documents — not just the
+  position it leads them to. Do not manufacture a disagreement the story does not show, and
+  do not dress a fringe claim up as an equal side.
+
+SHAPE — how the article is built
+- Before writing, work out what the story is about — not its topic, but its tension: who
+  wants what, who is resisting, what is at stake, what changed. Say it to yourself in one
+  sentence. Then make the article serve that sentence: a reader who finishes your version
+  should answer "so what is the dispute, and between whom?" the same way a reader of the
+  original would. An article that lists correct facts but loses this is a failed rewrite.
+- Keep each actor attached to their stake. Who demanded, who refused, who opposes, who is
+  blamed, whose money or land or job is on the line — these relationships are the story.
+  A fact that does not serve the story's own question is the fact to cut, even if true.
+- The first paragraph says what makes this news now: the specific thing that happened — a
+  ruling, a filing, a vote, a finding, an announcement — and who did it. Give its date there
+  when the story supplies one. Do not open with general background on the field; background
+  comes after the reader knows what happened.
+- Length: the assignment gives a target word count. Use paragraphs of three to five sentences.
+- Cover the source from start to END. Before writing, map its sections in order and budget
+  your paragraphs across all of them — at least one for each major section, and never spend
+  more than half your article on the first half of the source. The back half of a long piece
+  is usually where its news lives (unpublished results, this year's developments), so
+  reaching it is not optional. Running out of room having covered only the opening is a
+  failed article, not a shorter one.
+- Limits are part of the finding. When the source says what is still unknown, what has not
+  been tested in humans, which harder case the result may not cover, or what makes the
+  experiment unlike real conditions, those go in your article — and so does the outside
+  researcher, not involved in the work, whom the story brings in to weigh it. Journals and
+  reporters put that material near the end, which is exactly where a rewrite that runs out
+  of room drops it. Cutting it does not shorten the story, it changes the claim: your
+  article must not read as more confident about the result than the source is. Give the
+  caveats their own paragraph rather than a trailing clause.
+- If the headline joins ideas with "or", "and", "but" or "vs", every element it names must
+  appear in your article. A piece titled "Pain or Pleasure" that never mentions pleasure has
+  failed, whatever else it got right.
+- If the headline poses a question or stakes a claim — "why X", "how Y", "X won't hold up" —
+  answering it IS the assignment. At least half your paragraphs must deliver the source's own
+  answer: the named cases, laws, filings, actors and mechanisms it cites. "Experts think it
+  is vulnerable" is a one-line nod, not an answer; which law, which provision, violated how —
+  that is where the information lives.
+- Every paragraph must carry something no earlier paragraph carried. Before writing each one,
+  ask what it adds. If it would make a point you already made in different words, do not
+  write it — write a shorter article instead.
+- Ground each paragraph in something specific: a figure, a date, a named person or
+  organisation, a study, a concrete example. A paragraph that only asserts something in
+  general terms is the paragraph to cut.
+- When you do have to cut, keep every quantitative comparison and contrast the source
+  draws — X is high while Y is low, estimates range from A to B, one result agrees and
+  another conflicts. Those carry the findings. Equipment specifications and dimensions are
+  the first thing to drop, not the last.
+- Do not close by restating your opening. Say what happens next, and stop.
+
+STYLE — how it should read
+- First identify what the source IS. The plain-news register below applies to news
+  reporting. If the source is a satirical column, a humor piece or a voiced essay, match
+  ITS register instead: say what it is up front (a satirical column by X), keep its jokes
+  as jokes and its irony as irony, and follow the piece's own arc rather than forcing a
+  news lead onto it. A deliberately absurd example — a gag that breaks its own list — must
+  never be flattened into a neutral factual claim; converted that way, a joke reads as an
+  error. Satire re-reported as straight news has lost the story.
+- Reading level: the assignment gives it. Write to that level exactly.
+- Write plain news English, the way an AP or NPR reporter writes: concrete nouns, active
+  verbs, people doing things. If a wire reporter would not write a phrase, do not write it.
+- Do not stack abstract nouns. Constructions like "an institutional obligation to adhere to
+  evidentiary standards" or "the central narrative surrounding heritage preservation" are not
+  journalism, they are padding. Write who did what instead, in the plainest words that are
+  still accurate.
+- Name the people involved and say what they do. Do not leave them as "officials",
+  "researchers", "experts" or "critics" when the story gives you their names.
+
+OUTPUT
+- Plain text in every field. No markdown, no bold, no headings, and no citation markers such
+  as [1] or [2.1.1] — those are search artefacts, not part of an article.
+- "url" is the exact address of the story you reported. Never assemble, guess or complete an
+  address; leave it empty instead.
+- "related" holds up to 5 OTHER real stories you saw from the same outlet, each with its own
+  published headline and a real address you actually saw. Exclude the story you reported.
+  Drop an entry rather than guess its address. If you saw none, use an empty array.
+- Exactly 5 keywords, chosen for a Korean learner of English.
+- Reply with JSON in the shape the assignment gives, and nothing else. No markdown fences,
+  no preamble.`;
 
 export async function fetchArticle({
   geminiKey,
@@ -734,153 +923,16 @@ Work only from that text. Do not search, and do not bring in anything the text d
   mentions, each scoped to ${source.domain}. Only when that still leaves you without
   material, write less. Never invent detail, speculate, or pad to reach the number.`;
 
-    return `${intro}
+    return `ASSIGNMENT
 
-Write YOUR OWN English article reporting that story.
+${intro}
 
-SOURCE — what you may draw on
-- Build the article from one source article, the one you opened. Other search results will
-  cover the same event; do not fold their details, figures or framing into it. If they say
-  something different, that is not yours to merge or reconcile.
-- Write only what your source reports. Do not add background, context, analysis or scene
-  detail out of your own knowledge, however likely it seems. If a fact is not in what you
-  read, it does not go in the article.
-- Never copy sentences or distinctive phrases from the source. Re-report the facts in fresh
-  wording.
-- Restructure freely. Do not follow the source's paragraph or sentence order, and do not
-  rebuild its sentences with words swapped out. Decide for yourself what to lead with.
+Write YOUR OWN English article reporting that story, under the rules you were given.
 
-FACTS — what has to be exactly right
-- Copy the names of people, institutions, journals and instruments exactly as they appear,
-  accents and diacritics included — Börk, not Bork. Never reorder, translate, expand,
-  abbreviate or reconstruct a name, and never attach a person to a different institution
-  than the one the story gives them.
-- Copy figures exactly as the source states them. "50 years" must not soften into "more than
-  40 years"; a number the source commits to is not yours to round or hedge.
-- Whenever one party does something to another — demands, refuses, sanctions, sues, rejects,
-  pays — name both parties and check which way round it goes before writing the sentence.
-  Reversing who demanded and who refused is a factual error, not a wording choice.
-- Attribute every claim, argument and figure to whoever actually made it. Never merge two
-  people's positions into one, and never move one source's argument to a different speaker.
-- Findings the story credits to earlier work stay credited to earlier work. If a mechanism
-  was established by previous research and a named scientist is quoted saying something
-  else about it, do not fold the two together so the quote appears to be that person's
-  finding. A quotation supports only what that person actually said.
-- Where and when a thing happens is a fact, not a scene-setting phrase. Attach a circumstance
-  — during an outbreak, in the body, after a meal, at the plant — only to the step the source
-  attaches it to. A toxin that enters people through contaminated food is not a toxin that
-  acts "during" the bloom that produced it; sliding the qualifier onto the wrong step invents
-  a causal chain the source does not report.
-- Do not sharpen a fact with detail you were not given. If the source says "breathing
-  support", write breathing support, not "mechanical ventilation"; if it says a toxin gets
-  into shellfish, do not explain how it accumulates there. Filling in the plausible specific
-  is inventing, even when the specific happens to be true.
-- The date on an article is when it was published, nothing more. Do not turn it into the date
-  of an event. If an article dated 7 August reports that researchers announced something,
-  that does not mean they announced it on 7 August — the announcement may be months older.
-  Give a date for an event only when the story states that date; otherwise write the sentence
-  without a date rather than reaching for the one you have.
-- Quote a person directly only if you found that exact quote. Never invent a quote or put
-  words in a named person's mouth. When unsure, paraphrase with attribution.
-- An analogy or example belongs to whoever made it in the source. Never compose one and hand
-  it to a named person, or build a paragraph around a comparison the source does not contain.
-- Never number a problem, case, section or item unless the source gives that number. "Three
-  of the problems" stays three of the problems; inventing #146 and #183 to make it concrete
-  produces the kind of detail a reader repeats and is wrong about. Same for totals and dates
-  you did not read — do not round a count the source states precisely.
-- Report a survey, poll or consensus only if the source says one happened. People interviewed
-  are not people "surveyed". One named person's view stays theirs — never promote it to
-  "experts say", and keep any condition they attached to it.
-- Explain why something is so only where the source explains it. If it says one field proved
-  more approachable and does not say why, report that — do not supply a mechanism of your own.
-- Keep each quotation in the context where it appears. A quote said about one topic must not
-  be moved next to a different topic, where it would seem to be about that instead.
-- Keep the source's degree of certainty exactly. If researchers are "considering" or
-  "wondering about" something, do not upgrade it to "developing" or "building"; a "may" or
-  "could" must not become a "will". Firming up a hedge is a factual error.
-- The same in the other direction: what has already happened must not slide into the future
-  tense. Lawsuits that were filed are not lawsuits that "are expected"; a completed decision
-  is not "planned". Demoting a done fact to a forecast is a factual error too.
-- If the story shows genuine disagreement, report both positions, say who holds each, and
-  give the evidence each side cites — the figures, the studies, the documents — not just the
-  position it leads them to. Do not manufacture a disagreement the story does not show, and
-  do not dress a fringe claim up as an equal side.
-
-SHAPE — how the article is built
-- Before writing, work out what the story is about — not its topic, but its tension: who
-  wants what, who is resisting, what is at stake, what changed. Say it to yourself in one
-  sentence. Then make the article serve that sentence: a reader who finishes your version
-  should answer "so what is the dispute, and between whom?" the same way a reader of the
-  original would. An article that lists correct facts but loses this is a failed rewrite.
-- Keep each actor attached to their stake. Who demanded, who refused, who opposes, who is
-  blamed, whose money or land or job is on the line — these relationships are the story.
-  A fact that does not serve the story's own question is the fact to cut, even if true.
-- The first paragraph says what makes this news now: the specific thing that happened — a
-  ruling, a filing, a vote, a finding, an announcement — and who did it. Give its date there
-  when the story supplies one. Do not open with general background on the field; background
-  comes after the reader knows what happened.
-- Length: ${lengthSpec}. Use paragraphs of three to five sentences.
-- Cover the source from start to END. Before writing, map its sections in order and budget
-  your paragraphs across all of them — at least one for each major section, and never spend
-  more than half your article on the first half of the source. The back half of a long piece
-  is usually where its news lives (unpublished results, this year's developments), so
-  reaching it is not optional. Running out of room having covered only the opening is a
-  failed article, not a shorter one.
-- Limits are part of the finding. When the source says what is still unknown, what has not
-  been tested in humans, which harder case the result may not cover, or what makes the
-  experiment unlike real conditions, those go in your article — and so does the outside
-  researcher, not involved in the work, whom the story brings in to weigh it. Journals and
-  reporters put that material near the end, which is exactly where a rewrite that runs out
-  of room drops it. Cutting it does not shorten the story, it changes the claim: your
-  article must not read as more confident about the result than the source is. Give the
-  caveats their own paragraph rather than a trailing clause.
-- If the headline joins ideas with "or", "and", "but" or "vs", every element it names must
-  appear in your article. A piece titled "Pain or Pleasure" that never mentions pleasure has
-  failed, whatever else it got right.
-- If the headline poses a question or stakes a claim — "why X", "how Y", "X won't hold up" —
-  answering it IS the assignment. At least half your paragraphs must deliver the source's own
-  answer: the named cases, laws, filings, actors and mechanisms it cites. "Experts think it
-  is vulnerable" is a one-line nod, not an answer; which law, which provision, violated how —
-  that is where the information lives.
-- Every paragraph must carry something no earlier paragraph carried. Before writing each one,
-  ask what it adds. If it would make a point you already made in different words, do not
-  write it — write a shorter article instead.
-- Ground each paragraph in something specific: a figure, a date, a named person or
-  organisation, a study, a concrete example. A paragraph that only asserts something in
-  general terms is the paragraph to cut.
-- When you do have to cut, keep every quantitative comparison and contrast the source
-  draws — X is high while Y is low, estimates range from A to B, one result agrees and
-  another conflicts. Those carry the findings. Equipment specifications and dimensions are
-  the first thing to drop, not the last.
-- Do not close by restating your opening. Say what happens next, and stop.
+Outlet: ${source.label}
+Reading level: ${levelSpec}
+Length: ${lengthSpec}.
 ${quotaRule}
-
-STYLE — how it should read
-- First identify what the source IS. The plain-news register below applies to news
-  reporting. If the source is a satirical column, a humor piece or a voiced essay, match
-  ITS register instead: say what it is up front (a satirical column by X), keep its jokes
-  as jokes and its irony as irony, and follow the piece's own arc rather than forcing a
-  news lead onto it. A deliberately absurd example — a gag that breaks its own list — must
-  never be flattened into a neutral factual claim; converted that way, a joke reads as an
-  error. Satire re-reported as straight news has lost the story.
-- Reading level: ${levelSpec}
-- Write plain news English, the way an AP or NPR reporter writes: concrete nouns, active
-  verbs, people doing things. If a wire reporter would not write a phrase, do not write it.
-- Do not stack abstract nouns. Constructions like "an institutional obligation to adhere to
-  evidentiary standards" or "the central narrative surrounding heritage preservation" are not
-  journalism, they are padding. Write who did what instead, in the plainest words that are
-  still accurate.
-- Name the people involved and say what they do. Do not leave them as "officials",
-  "researchers", "experts" or "critics" when the story gives you their names.
-
-OUTPUT
-- Plain text in every field. No markdown, no bold, no headings, and no citation markers such
-  as [1] or [2.1.1] — those are search artefacts, not part of an article.
-- "url" is the exact address of the story you reported. Never assemble, guess or complete an
-  address; leave it empty instead.
-- "related" holds up to 5 OTHER real stories you saw from ${source.label}, each with its own
-  published headline and a real address you actually saw. Exclude the story you reported.
-  Drop an entry rather than guess its address. If you saw none, use an empty array.
 
 Reply with JSON and nothing else. No markdown fences, no preamble.
 {
@@ -905,16 +957,20 @@ ${full.paragraphs.join("\n\n")}`
     }`;
   };
 
-  const call = (promptText, schema, useSearch) =>
+  const call = (promptText, schema, useSearch, opts = {}) =>
     gemini({
       geminiKey,
       proxy,
       proxyToken,
-      model: MODELS.news,
+      model: opts.model || MODELS.news,
+      purpose: opts.purpose || (useSearch ? "news:search" : "news:full"),
+      // 규칙은 매 호출 같은 글자라 시스템 지시로 보냅니다(ARTICLE_RULES 주석 참고).
+      // system 에 null 을 주면 규칙 없이 부릅니다. 교정 호출이 그렇습니다.
+      system: opts.system === undefined ? ARTICLE_RULES : opts.system || undefined,
       // 긴 분량은 검색 경로에서는 여러 번 캐야 하고, 전문 경로에서도 1500단어를
       // 원문 전 구간에 배분하는 설계가 필요합니다. 둘 다 생각이 드는 일이라
       // 길게일 때는 경로와 무관하게 medium 을 씁니다.
-      thinkingLevel: length === "long" ? "medium" : "low",
+      thinkingLevel: opts.thinkingLevel || (length === "long" ? "medium" : "low"),
       contents: [{ role: "user", parts: [{ text: promptText }] }],
       // 전문이 있으면 검색을 끕니다. 다른 기사가 섞일 통로가 사라지고, 검색
       // 주입 입력과 그라운딩 호출 비용도 함께 사라집니다.
@@ -923,24 +979,13 @@ ${full.paragraphs.join("\n\n")}`
     });
 
   // 후보 하나를 놓고 기사를 써 봅니다. 못 쓰면 이유를 돌려주고, 부르는 쪽이
-  // 다음 후보로 넘어갑니다.
-  async function attempt(chosen) {
-    // 프록시가 있으면 기사 전문을 먼저 가져와 봅니다. 실패하면 검색 경로입니다.
-    let full = null;
-    if (chosen?.url && proxy) {
-      tick("기사 전문을 가져오는 중…");
-      full = await fetchFullText(chosen.url, proxy, proxyToken);
-      if (full?.dead) {
-        // 주소가 죽어 있으면 이 후보로는 기사를 쓰지 않습니다. 다음 후보로.
-        logIssue("후보주소사망", source?.id, chosen.url);
-        return { fail: "error" };
-      }
-      tick(
-        full
-          ? `전문 ${full.paragraphs.length}문단 확보 · 다시 쓰는 중…`
-          : "전문을 가져오지 못해 검색으로 읽는 중…"
-      );
-    }
+  // 다음 후보로 넘어갑니다. 전문은 아래 사전 훑기에서 이미 받아 둔 것을 받습니다.
+  async function attempt(chosen, full) {
+    tick(
+      full
+        ? `전문 ${full.paragraphs.length}문단 확보 · 다시 쓰는 중…`
+        : "검색으로 읽고 다시 쓰는 중…"
+    );
     const useSearch = !full;
     const promptText = buildPrompt(chosen, full);
 
@@ -1025,7 +1070,18 @@ ${JSON.stringify({ ...article, related: undefined })}
 SOURCE TEXT:
 
 ${full.paragraphs.join("\n\n")}`;
-          const fixed = await call(fixPrompt, ARTICLE_SCHEMA, false);
+          // 교정은 "여기 적힌 것만 고치고 나머지는 그대로 두라"는 좁은 편집이라
+          // 집필보다 쉽습니다. 게다가 고친 결과가 더 낫지 않으면 아래에서 폐기하는
+          // 안전망이 이미 있어, 작은 모델이 망쳐도 원래 기사로 계속 갑니다.
+          // 입력에 기사와 원문이 통째로 들어가는 큰 호출이라 단가 차이가 큽니다.
+          // 집필 규칙(ARTICLE_RULES)은 "새로 써라"는 지시라 여기서는 방해가 되므로
+          // system 을 비웁니다.
+          const fixed = await call(fixPrompt, ARTICLE_SCHEMA, false, {
+            model: MODELS.list,
+            system: null,
+            thinkingLevel: "low",
+            purpose: "news:fix",
+          });
           const reparsed = tryParse(fixed.text);
           if (reparsed?.paragraphs?.length) {
             const still = fidelityIssues(reparsed, full);
@@ -1061,19 +1117,59 @@ ${full.paragraphs.join("\n\n")}`;
     return { article, cand, aliveUrl: full || chosen?.proven ? chosen?.url : null };
   }
 
+  // 전문 경로는 그라운딩 쿼리와 검색 주입 입력이 통째로 빠지고, 원문 대조까지
+  // 되므로 품질도 더 낫습니다. 예전에는 1번 후보의 전문 추출이 실패하면 그
+  // 후보를 그대로 검색 경로로 넘겨서, 2번 후보의 전문이 멀쩡해도 열어 보지
+  // 못한 채 비싼 검색 호출을 냈습니다. 추출은 워커 호출이라 과금이 없으므로
+  // 후보 셋까지 먼저 훑어 전문이 나오는 후보를 찾습니다. 유료 장벽에 걸린
+  // 1번 후보 때문에 검색 경로로 떨어지는 일이 그만큼 줄어듭니다.
+  const candidates = picked ? (listed.length ? listed : [picked]) : [];
+  const deadUrl = new Set();
+  let opened = null; // { chosen, full }
+  if (proxy && candidates.length) {
+    tick("기사 전문을 가져오는 중…");
+    for (const c of candidates.slice(0, 3)) {
+      if (!c?.url) continue;
+      const full = await fetchFullText(c.url, proxy, proxyToken);
+      if (full?.dead) {
+        // 주소가 죽어 있으면 이 후보는 검색 경로로도 쓰지 않습니다.
+        logIssue("후보주소사망", source?.id, c.url);
+        deadUrl.add(c.url);
+        continue;
+      }
+      if (full) {
+        opened = { chosen: c, full };
+        break;
+      }
+    }
+    if (!opened && candidates.length)
+      logIssue("전문실패", source?.id, `후보 ${Math.min(candidates.length, 3)}건 모두 추출 실패`);
+  }
+
   // 1번 후보를 열지 못하는 일이 있습니다. 유료 장벽이 대표적입니다. 목록에
   // 다른 후보가 있는데 거기서 끝내면 아무것도 못 읽게 되므로 다음 후보로
   // 넘어갑니다. 매번 새로 부르는 비싼 호출이라 두 번까지만 시도합니다.
-  const attempts = picked ? (listed.length ? listed.slice(0, 2) : [picked]) : [null];
+  const live = candidates.filter((c) => c?.url && !deadUrl.has(c.url));
+  const attempts = !picked
+    ? [{ chosen: null, full: null }]
+    : opened
+      ? [
+          opened,
+          ...live
+            .filter((c) => c.url !== opened.chosen.url)
+            .slice(0, 1)
+            .map((c) => ({ chosen: c, full: null })),
+        ]
+      : live.slice(0, 2).map((c) => ({ chosen: c, full: null }));
 
   let article = null;
   let cand = null;
   let aliveUrl = null;
   let lastFail = "error";
   let nth = 0;
-  for (const chosen of attempts) {
+  for (const { chosen, full } of attempts) {
     if (nth++ > 0) tick("첫 기사를 열지 못해 다음 후보로 넘어가는 중…");
-    const r = await attempt(chosen);
+    const r = await attempt(chosen, full);
     if (r.article) {
       article = r.article;
       cand = r.cand;
@@ -1286,6 +1382,7 @@ Reply with JSON and nothing else:
       proxy,
       proxyToken,
       model,
+      purpose: "list",
       thinkingLevel: level,
       // 생각 토큰이 출력 상한을 함께 깎을 수 있습니다(공식 문서도 "여유 있게
       // 잡고 finishReason 을 보라"고만 합니다). 재시도에서 생각을 medium 으로
@@ -1487,6 +1584,7 @@ export async function lookupWord({ geminiKey, proxy, proxyToken, word, sentence 
     proxy,
     proxyToken,
     model: MODELS.lookup,
+    purpose: "lookup:word",
     thinkingLevel: "minimal",
     maxOutputTokens: 1200,
     schema: WORD_SCHEMA,
@@ -1592,6 +1690,7 @@ export async function findPhrases({ geminiKey, proxy, proxyToken, paragraphs }) 
     proxy,
     proxyToken,
     model: MODELS.lookup,
+    purpose: "lookup:phrases",
     thinkingLevel: "minimal",
     maxOutputTokens: 1600,
     schema: PHRASES_SCHEMA,
@@ -1639,6 +1738,7 @@ export async function lookupPhrase({ geminiKey, proxy, proxyToken, phrase, sente
     proxy,
     proxyToken,
     model: MODELS.lookup,
+    purpose: "lookup:phrase",
     thinkingLevel: "minimal",
     maxOutputTokens: 1400,
     schema: PHRASE_SCHEMA,
@@ -1670,6 +1770,7 @@ export async function lookupSentence({ geminiKey, proxy, proxyToken, sentence })
     proxy,
     proxyToken,
     model: MODELS.lookup,
+    purpose: "lookup:sentence",
     thinkingLevel: "minimal",
     maxOutputTokens: 1400,
     schema: SENTENCE_SCHEMA,
@@ -1711,6 +1812,7 @@ export async function discuss({ geminiKey, proxy, proxyToken, article, messages 
     proxy,
     proxyToken,
     model: MODELS.chat,
+    purpose: "chat",
     thinkingLevel: "low",
     maxOutputTokens: 1500,
     contents,

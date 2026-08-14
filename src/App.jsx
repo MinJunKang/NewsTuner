@@ -119,6 +119,11 @@ const FIELDS = [
         window: "the last week", note: "연방대법원 전문, 법률가가 일반 독자용으로 풀어 씀" },
       { id: "tclaw", length: "mid", label: "The Conversation · Law", short: "TC LAW", freq: "100.7",
         domain: "theconversation.com",
+        // 토픽 피드 주소는 슬러그가 아니라 뒤의 숫자로 해석됩니다. 아무 슬러그나
+        // 붙여도 200 이 오고 엉뚱한 주제가 오므로(us-supreme-court-1163 은 실제로
+        // 미생물 법의학입니다), 숫자를 바꾸면 반드시 내용을 확인해야 합니다.
+        // 78 = Law. 미국판 외 기사도 섞여 옵니다.
+        feed: "https://theconversation.com/us/topics/law-78/articles.atom",
         // 법 섹션은 주간 발행량이 적어 1주 창으로는 검색이 빈손이 됩니다.
         window: "the last month", note: "법학 교수의 해설, 배경 설명이 친절함" },
     ],
@@ -185,6 +190,14 @@ const REPORT_FORM = {
   entryId: "2050914000",
 };
 
+// 사용량 기록을 받을 폼. 오류 기록과 섞이면 둘 다 읽기 어려워지므로 폼을 따로
+// 씁니다. 새 구글 폼을 만들어 두 ID 를 채우면 설정에 전송 버튼이 나타납니다.
+// (폼 편집 화면에서 미리보기 → 개발자 도구로 entry.XXXX 를 확인하면 됩니다.)
+const USAGE_FORM = {
+  formId: "",
+  entryId: "",
+};
+
 // 최근 기록을 전송용 한 줄 요약으로 만듭니다.
 function summarizeErrLog(maxChars) {
   let entries = [];
@@ -203,6 +216,68 @@ function summarizeErrLog(maxChars) {
     body += l + "\n";
   }
   return body;
+}
+
+// since 이후의 사용량 기록만 돌려줍니다. 자동 전송이 이미 보낸 구간을 다시
+// 보내지 않도록 마지막 전송 시각으로 자릅니다.
+function usageEntries(since) {
+  try {
+    const arr = JSON.parse(localStorage.getItem("nt-usagelog") || "[]");
+    if (!Array.isArray(arr)) return [];
+    return since ? arr.filter((e) => (e?.t || "") > since) : arr;
+  } catch {
+    return [];
+  }
+}
+
+// 토큰 사용량을 단계별로 합쳐 한 장으로 만듭니다. 개별 호출을 그대로 보내면
+// 수백 줄이 되고, 정작 알고 싶은 것("어느 단계가 비용을 먹나")은 안 보입니다.
+// 숫자와 모델 이름만 담습니다. 기사 본문, 검색어, 단어, 주소는 담지 않습니다.
+function summarizeUsageLog(maxChars, since) {
+  const entries = usageEntries(since);
+  if (!entries.length) return null;
+
+  const groups = new Map();
+  for (const e of entries) {
+    const key = `${e?.p || "?"} · ${e?.m || "?"}`;
+    const g = groups.get(key) || { n: 0, in: 0, cache: 0, tool: 0, think: 0, out: 0, total: 0 };
+    g.n += 1;
+    for (const f of ["in", "cache", "tool", "think", "out", "total"]) g[f] += e?.[f] || 0;
+    groups.set(key, g);
+  }
+
+  const times = entries.map((e) => (e?.t || "").slice(0, 10)).filter(Boolean).sort();
+  const grand = [...groups.values()].reduce((a, g) => a + g.total, 0);
+  let body =
+    `News Tuner 사용량 (빌드 ${__BUILD_ID__}, ${times[0] || "?"}~${times[times.length - 1] || "?"}, ` +
+    `${entries.length}회, 합계 ${grand.toLocaleString()} 토큰)\n` +
+    `단계·모델 | 호출 | 입력(캐시/검색주입) | 생각 | 출력 | 회당합계\n`;
+
+  const rows = [...groups.entries()].sort((a, b) => b[1].total - a[1].total);
+  for (const [key, g] of rows) {
+    const line =
+      `${key} | ${g.n} | ${g.in.toLocaleString()}(${g.cache.toLocaleString()}/${g.tool.toLocaleString()})` +
+      ` | ${g.think.toLocaleString()} | ${g.out.toLocaleString()} | ${Math.round(g.total / g.n).toLocaleString()}\n`;
+    if ((body + line).length > maxChars) break;
+    body += line;
+  }
+  return body;
+}
+
+// 구글 폼으로 무음 POST 합니다. no-cors 라 성공 여부는 알 수 없습니다.
+async function postToForm(form, body) {
+  if (!form.formId || !form.entryId || !body) return false;
+  try {
+    await fetch(`https://docs.google.com/forms/d/e/${form.formId}/formResponse`, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ [`entry.${form.entryId}`]: body }),
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 const TABS = [
@@ -537,6 +612,9 @@ export default function App() {
 
   const [saveFailed, setSaveFailed] = useState(false);
   const [logMsg, setLogMsg] = useState("");
+  const [usageMsg, setUsageMsg] = useState("");
+  // 사용량 통계 전송 여부. 설정에서 언제든 끌 수 있고, 끄면 기록은 기기에만 남습니다.
+  const [usageSend, setUsageSend] = useState(() => load("nt-usage-send", true));
   const [ioMsg, setIoMsg] = useState("");
   const fileRef = useRef(null);
 
@@ -566,6 +644,23 @@ export default function App() {
   useEffect(() => {
     chatEnd.current?.scrollIntoView({ behavior: "smooth" });
   }, [chat, chatBusy]);
+  useEffect(() => {
+    save("nt-usage-send", usageSend);
+  }, [usageSend]);
+
+  // 사용량 통계 자동 전송. 하루에 한 번, 새 기록이 20건 넘게 쌓였을 때만 보냅니다.
+  // 보낸 시각을 남겨 두고 그 뒤에 쌓인 것만 다음 전송에 담으므로 같은 호출이 두
+  // 번 가지 않습니다. 실패하면 조용히 넘어가고 다음 실행에서 다시 시도합니다.
+  useEffect(() => {
+    if (!usageSend || !USAGE_FORM.formId || !USAGE_FORM.entryId) return;
+    const since = load("nt-usage-sent", "");
+    if (since && Date.now() - Date.parse(since) < 24 * 60 * 60 * 1000) return;
+    if (usageEntries(since).length < 20) return;
+    const stamp = new Date().toISOString();
+    postToForm(USAGE_FORM, summarizeUsageLog(4000, since)).then((ok) => {
+      if (ok) save("nt-usage-sent", stamp);
+    });
+  }, [usageSend]);
 
   const ready = keys.proxy || !!keys.gemini;
 
@@ -1525,24 +1620,13 @@ export default function App() {
                         setLogMsg("보낼 기록이 없습니다.");
                         return;
                       }
-                      try {
-                        // no-cors 라 응답을 읽을 수 없어 성공을 확인하지는 못하지만,
-                        // 구글 폼 formResponse 는 이 방식의 전송을 받아 줍니다.
-                        await fetch(
-                          `https://docs.google.com/forms/d/e/${REPORT_FORM.formId}/formResponse`,
-                          {
-                            method: "POST",
-                            mode: "no-cors",
-                            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                            body: new URLSearchParams({
-                              [`entry.${REPORT_FORM.entryId}`]: body,
-                            }),
-                          }
-                        );
-                        setLogMsg("전송했습니다. 폼 응답함으로 들어갑니다.");
-                      } catch {
-                        setLogMsg("전송하지 못했습니다. 연결을 확인한 뒤 다시 시도하거나, 복사해서 직접 전해 주세요.");
-                      }
+                      // no-cors 라 응답을 읽을 수 없어 성공을 확인하지는 못하지만,
+                      // 구글 폼 formResponse 는 이 방식의 전송을 받아 줍니다.
+                      setLogMsg(
+                        (await postToForm(REPORT_FORM, body))
+                          ? "전송했습니다. 폼 응답함으로 들어갑니다."
+                          : "전송하지 못했습니다. 연결을 확인한 뒤 다시 시도하거나, 복사해서 직접 전해 주세요."
+                      );
                     }}
                   >
                     바로 전송
@@ -1577,6 +1661,78 @@ export default function App() {
                 언제 어떤 분야·매체에서 무슨 오류가 났는지 이 기기에만 남습니다. 자동으로
                 전송되지 않으며, "바로 전송"을 누르면 최근 기록이 개발자에게 전달되어
                 업데이트에 반영됩니다.
+              </small>
+            </div>
+
+            <div className="field">
+              <label>사용량 통계</label>
+              <div className="row__chips">
+                <Chip on={usageSend} onClick={() => setUsageSend(true)}>
+                  보내기
+                </Chip>
+                <Chip on={!usageSend} onClick={() => setUsageSend(false)}>
+                  보내지 않기
+                </Chip>
+              </div>
+              <div className="row__chips">
+                <button
+                  className="paste__btn"
+                  onClick={async () => {
+                    const body = summarizeUsageLog(8000);
+                    if (!body) {
+                      setUsageMsg("보낼 기록이 없습니다.");
+                      return;
+                    }
+                    try {
+                      await navigator.clipboard.writeText(body);
+                      setUsageMsg("복사했습니다.");
+                    } catch {
+                      setUsageMsg("복사하지 못했습니다.");
+                    }
+                  }}
+                >
+                  복사
+                </button>
+                {USAGE_FORM.formId && USAGE_FORM.entryId && (
+                  <button
+                    className="paste__btn"
+                    onClick={async () => {
+                      const body = summarizeUsageLog(4000);
+                      if (!body) {
+                        setUsageMsg("보낼 기록이 없습니다.");
+                        return;
+                      }
+                      const stamp = new Date().toISOString();
+                      const ok = await postToForm(USAGE_FORM, body);
+                      if (ok) save("nt-usage-sent", stamp);
+                      setUsageMsg(
+                        ok
+                          ? "전송했습니다."
+                          : "전송하지 못했습니다. 연결을 확인한 뒤 다시 시도해 주세요."
+                      );
+                    }}
+                  >
+                    바로 전송
+                  </button>
+                )}
+                <button
+                  className="paste__btn"
+                  onClick={() => {
+                    localStorage.removeItem("nt-usagelog");
+                    setUsageMsg("비웠습니다.");
+                  }}
+                >
+                  비우기
+                </button>
+                <span className="hint">{usageEntries().length}건</span>
+              </div>
+              {usageMsg && <p className="io-msg" style={{ padding: "6px 0 0" }}>{usageMsg}</p>}
+              <small>
+                어느 기능이 토큰을 얼마나 쓰는지 모아 앱 개선에 씁니다. 보내는 것은 호출
+                시각, 모델 이름, 단계 이름(기사 집필·단어 풀이 같은), 토큰 수뿐입니다.
+                기사 본문, 검색어, 찾아본 단어, API 키는 보내지 않습니다. "보내기"로 두면
+                하루 한 번 자동으로 전송되고, "보내지 않기"로 바꾸면 기록은 이 기기에만
+                남습니다. "복사"를 누르면 보내는 내용을 그대로 확인할 수 있습니다.
               </small>
             </div>
 
