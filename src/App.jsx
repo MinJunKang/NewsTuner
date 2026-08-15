@@ -625,6 +625,35 @@ function speak(text) {
   window.speechSynthesis.speak(u);
 }
 
+// 예문 한 줄입니다. 그 단어가 실제로 쓰인 자리를 밑줄과 굵기로 드러내고, 끝에
+// 작은 스피커를 답니다. 사전 시트와 단어장이 같은 모양이어야 해서 한곳에 둡니다.
+function ExampleLine({ example, word, className = "k-ex" }) {
+  if (!example) return null;
+  const cut = markUsage(example, word);
+  return (
+    <p className={className}>
+      {cut ? (
+        <>
+          {cut[0]}
+          <b className="ex__hit">{cut[1]}</b>
+          {cut[2]}
+        </>
+      ) : (
+        example
+      )}
+      {canSpeak && (
+        <button
+          className="speak speak--sm"
+          onClick={() => speak(example)}
+          aria-label="예문 듣기"
+        >
+          🔊
+        </button>
+      )}
+    </p>
+  );
+}
+
 // 모델에게 마크다운을 쓰지 말라고 해도 가끔 **강조** 를 섞어 보내고, 그러면
 // 별표가 글자로 그대로 보입니다. HTML 로 해석하지 않고 React 요소로만 바꾸므로
 // 주입 위험은 없습니다.
@@ -1636,30 +1665,7 @@ export default function App() {
                     </button>
                   </div>
                   <p className="vocab__ko">{v.ko}</p>
-                  {v.example && (
-                    <p className="vocab__ex">
-                      {(() => {
-                        const cut = markUsage(v.example, v.word);
-                        if (!cut) return v.example;
-                        return (
-                          <>
-                            {cut[0]}
-                            <b className="vocab__hit">{cut[1]}</b>
-                            {cut[2]}
-                          </>
-                        );
-                      })()}
-                      {canSpeak && (
-                        <button
-                          className="speak speak--sm"
-                          onClick={() => speak(v.example)}
-                          aria-label="예문 듣기"
-                        >
-                          🔊
-                        </button>
-                      )}
-                    </p>
-                  )}
+                  <ExampleLine example={v.example} word={v.word} className="vocab__ex" />
                 </li>
               ))}
             </ul>
@@ -1906,7 +1912,7 @@ export default function App() {
               <p className="k-ko">{sheet.data.ko}</p>
               <p className="k-ctx">직역 — {sheet.data.literal}</p>
               <p className="k-ctx">{sheet.data.inContext}</p>
-              <p className="k-ex">{sheet.data.example}</p>
+              <ExampleLine example={sheet.data.example} word={phraseHead} />
               <p className="k-en">{sheet.data.exampleKo}</p>
               {sheet.data.related?.length > 0 && (
                 <p className="k-mono">{sheet.data.related.join(" · ")}</p>
@@ -1939,18 +1945,10 @@ export default function App() {
               <p className="k-ko">{sheet.data.ko}</p>
               <p className="k-en">{sheet.data.en}</p>
               <p className="k-ctx">{sheet.data.inContext}</p>
-              <p className="k-ex">
-                {sheet.data.example}
-                {canSpeak && (
-                  <button
-                    className="speak"
-                    onClick={() => speak(sheet.data.example)}
-                    aria-label="예문 듣기"
-                  >
-                    🔊
-                  </button>
-                )}
-              </p>
+              <ExampleLine
+                example={sheet.data.example}
+                word={sheet.data.base || sheet.data.word || sheet.term}
+              />
               <p className="k-en">{sheet.data.exampleKo}</p>
               {sheet.data.related?.length > 0 && (
                 <p className="k-mono">{sheet.data.related.join(" · ")}</p>
