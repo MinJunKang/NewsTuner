@@ -1,5 +1,7 @@
 // Vercel 함수 공용 조각입니다. 밑줄로 시작하는 파일은 라우트가 되지 않습니다.
-// worker/index.js 와 같은 정책을 씁니다. 한쪽을 고치면 다른 쪽도 확인하세요.
+// 프록시는 Vercel 하나로만 둡니다. 예전에는 Cloudflare Worker 구현이 함께 있었는데,
+// 거기에는 /extract 와 /feed 가 없어 피드와 전문 경로가 통째로 빠졌습니다. 같은
+// 정책을 두 곳에 유지하는 비용만 들고 기능은 반쪽이라 2026-08 에 지웠습니다.
 
 export const ALLOW_ORIGIN = "*"; // 예: "https://<아이디>.github.io"
 

@@ -115,7 +115,7 @@ export function looksLikeArticleUrl(u) {
 }
 
 // 링크가 실제로 살아 있는지는 그 주소를 불러 봐야 압니다. 브라우저는 CORS 때문에
-// 상태 코드를 읽을 수 없으므로 워커를 거쳐야만 확인됩니다. 워커가 없으면 확인을
+// 상태 코드를 읽을 수 없으므로 서버를 거쳐야만 확인됩니다. 서버가 없으면 확인을
 // 건너뜁니다. 확인하지 못한 것을 죽었다고 볼 수는 없습니다.
 async function deadUrls(urls, proxy, proxyToken) {
   if (!proxy || !urls.length) return null;
@@ -200,7 +200,7 @@ async function feedStories({ proxy, proxyToken, source, focus, exclude }) {
       body: JSON.stringify({ url: source.feed }),
     });
     if (!res.ok) {
-      logIssue("피드실패", source?.id, `프록시 응답 ${res.status}`);
+      logIssue("피드실패", source?.id, `서버 응답 ${res.status}`);
       return null;
     }
     const data = await res.json();
@@ -421,9 +421,9 @@ function apiError(res, body) {
 
   let message;
   if (res.status === 401 && /토큰/.test(detail)) {
-    // 워커의 SHARED_TOKEN 불일치입니다. API 키 문제로 안내하면 사용자가
+    // 서버의 SHARED_TOKEN 불일치입니다. API 키 문제로 안내하면 사용자가
     // 엉뚱한 칸을 고칩니다.
-    message = "프록시 토큰이 맞지 않습니다. 설정에서 프록시 토큰을 확인하세요.";
+    message = "서버 토큰이 맞지 않습니다. 설정에서 서버 토큰을 확인하세요.";
   } else if (badKey) {
     message = "API 키가 거부되었습니다. 설정에서 키를 확인하세요.";
   } else if (res.status === 429) {
@@ -486,7 +486,7 @@ async function gemini({
     : `${GEMINI_BASE}/${model}:generateContent?key=${encodeURIComponent(geminiKey)}`;
 
   const headers = { "Content-Type": "application/json" };
-  // 프록시를 쓸 때는 워커의 SHARED_TOKEN 과 맞춰 보냅니다.
+  // 서버를 쓸 때는 서버의 SHARED_TOKEN 과 맞춰 보냅니다.
   if (proxy && proxyToken?.trim()) headers["X-App-Token"] = proxyToken.trim();
 
   const generationConfig = {};
@@ -1178,7 +1178,7 @@ ${full.paragraphs.join("\n\n")}`;
   // 전문 경로는 그라운딩 쿼리와 검색 주입 입력이 통째로 빠지고, 원문 대조까지
   // 되므로 품질도 더 낫습니다. 예전에는 1번 후보의 전문 추출이 실패하면 그
   // 후보를 그대로 검색 경로로 넘겨서, 2번 후보의 전문이 멀쩡해도 열어 보지
-  // 못한 채 비싼 검색 호출을 냈습니다. 추출은 워커 호출이라 과금이 없으므로
+  // 못한 채 비싼 검색 호출을 냈습니다. 추출은 서버 호출이라 과금이 없으므로
   // 후보 셋까지 먼저 훑어 전문이 나오는 후보를 찾습니다. 유료 장벽에 걸린
   // 1번 후보 때문에 검색 경로로 떨어지는 일이 그만큼 줄어듭니다.
   const candidates = picked ? (listed.length ? listed : [picked]) : [];
@@ -1481,7 +1481,7 @@ Reply with JSON and nothing else:
   // 검색 증거(인용, 검색어 기록)를 하드 조건으로 걸어 봤지만, 증거가 안 붙어
   // 오는 정상 응답이 실전에서 계속 나와 세 번 연속 기능을 막았습니다. 증거가
   // 없으면 조건을 바꿔 한 번 더 시도해 보되, 그래도 없으면 목록을 받아들입니다.
-  // 허위 목록은 하류가 잡습니다. 도메인과 주소 모양 검사, 워커 링크 검사,
+  // 허위 목록은 하류가 잡습니다. 도메인과 주소 모양 검사, 서버 링크 검사,
   // 그리고 집필 단계가 제목을 검색해 흔적이 없으면 다음 후보로 넘어갑니다.
   // lite 에서 스키마와 검색을 함께 쓰는 조합이 거부(400)될 수 있습니다. 집필
   // 쪽에는 이 폴백이 있는데 목록에는 없어서, 거부가 나면 목록이 통째로 실패해

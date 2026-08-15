@@ -1630,7 +1630,7 @@ export default function App() {
             </div>
 
             <div className="field">
-              <label htmlFor="px">프록시 주소 · 권장</label>
+              <label htmlFor="px">서버 주소 · 권장</label>
               <input
                 id="px"
                 type="url"
@@ -1640,25 +1640,25 @@ export default function App() {
                 placeholder="https://…vercel.app/api"
               />
               <small>
-                넣으면 키를 기기에 두지 않고 프록시가 대신 호출합니다. 비워 두면 브라우저에서 직접
+                넣으면 키를 기기에 두지 않고 서버가 대신 호출합니다. 비워 두면 브라우저에서 직접
                 호출하는데, 기사 품질과 비용이 나빠질 수 있습니다.
               </small>
             </div>
 
             {keys.proxy && (
               <div className="field">
-                <label htmlFor="pt">프록시 토큰 · 선택</label>
+                <label htmlFor="pt">서버 토큰 · 선택</label>
                 <input
                   id="pt"
                   type="password"
                   autoComplete="off"
                   value={keys.token}
                   onChange={(e) => setKeys({ ...keys, token: e.target.value })}
-                  placeholder="워커의 SHARED_TOKEN"
+                  placeholder="서버의 SHARED_TOKEN"
                 />
                 <small>
-                  워커에 SHARED_TOKEN 을 넣었다면 같은 값을 여기에도 넣어야 합니다. 넣지 않으면
-                  워커가 모든 요청을 401로 막습니다.
+                  서버에 SHARED_TOKEN 을 넣었다면 같은 값을 여기에도 넣어야 합니다. 넣지 않으면
+                  서버가 모든 요청을 401로 막습니다.
                 </small>
               </div>
             )}

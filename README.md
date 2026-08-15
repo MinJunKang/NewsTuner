@@ -141,7 +141,7 @@ npm run dev
 
 **모델을 나눠 씁니다.** 단어 클릭은 짧고 잦으니 Flash-Lite(생각 기본값이 minimal 이라 빠릅니다),
 뉴스 수집과 토론은 Flash를 씁니다. 모델명은 자주 바뀌므로 `src/api.js`의 `MODELS` 객체
-한 곳에서만 고치면 전체에 적용됩니다. 워커를 쓴다면 `worker/index.js`의 `ALLOWED_MODELS`도 함께 고치세요.
+한 곳에서만 고치면 전체에 적용됩니다. `api/_shared.js`의 `ALLOWED_MODELS`도 함께 고치세요.
 
 **기사와 단어장은 기기에 남습니다.** 앱을 껐다 켜도 마지막 기사가 그대로 있습니다.
 
@@ -156,7 +156,7 @@ src/App.jsx              화면 전체
 src/styles.css           스타일
 public/                  아이콘, manifest, 서비스 워커
 .github/workflows/       Pages 자동 배포
-worker/                  권장. 키를 기기에 두지 않는 프록시
+api/                     권장. Vercel 에 두는 서버 (키 보관 · 피드 · 전문 · 링크 검사)
 ```
 
 ## 부록 A — Vercel 로 프록시 두기 (권장, 터미널 불필요)
@@ -204,31 +204,19 @@ API 키도 없습니다. 폼을 새로 연결하려면 아래처럼 만듭니다
 
 채우면 설정 탭에 "바로 전송" 버튼이 나타나고, 기록이 폼 응답함(+시트)으로 쌓입니다.
 
-## 부록 B — Cloudflare Workers 로 두기 (대안)
-
-`worker/index.js`를 Cloudflare Workers에 올리면 키가 폰이 아니라 Cloudflare에 저장됩니다.
-
-```bash
-npx wrangler deploy worker/index.js --name news-tuner-proxy
-npx wrangler secret put GEMINI_KEY   --name news-tuner-proxy
-npx wrangler secret put SHARED_TOKEN --name news-tuner-proxy
-```
-
-배포된 주소를 앱 설정의 "프록시 주소"에 넣고, `worker/index.js` 상단의 `ALLOW_ORIGIN`을
-`https://<아이디>.github.io` 로 바꿔 주세요.
-
-`SHARED_TOKEN`을 넣었다면 **같은 값을 앱 설정의 "프록시 토큰"에도 넣어야 합니다.**
-프록시 주소를 채우면 토큰 칸이 나타납니다. 값이 다르면 워커가 모든 요청을 401로 막습니다.
-
-### 워커를 쓰면 링크가 살아 있는지 확인합니다
+## 부록 B — 서버가 링크 생존을 확인하는 방식
 
 브라우저는 CORS 때문에 다른 사이트의 주소를 불러 상태 코드를 읽을 수 없습니다. 그래서
-링크가 실제로 열리는지는 워커를 통해서만 확인됩니다. 워커를 쓰면 기사 목록을 보여주기
+링크가 실제로 열리는지는 서버를 통해서만 확인됩니다. 서버를 두면 기사 목록을 보여주기
 전에 `/check` 로 확인해서 **404 인 링크를 미리 뺍니다.**
 
 뉴스 사이트가 데이터센터 IP를 봇으로 보고 403을 주는 일이 흔해서, **404와 410만 죽은
 것으로 봅니다.** 그 외 응답이나 시간 초과는 판단을 보류하고 링크를 남깁니다. 확인하지
 못한 것을 죽었다고 처리하면 멀쩡한 기사가 사라집니다.
 
-워커의 `ALLOWED_HOSTS` 는 `src/App.jsx` 의 매체 `domain` 값과 같게 유지하세요. 매체를
-추가하면 양쪽 다 고쳐야 합니다.
+`api/_shared.js` 의 `ALLOWED_HOSTS` 는 `src/App.jsx` 의 매체 `domain` 값과 같게 유지하세요.
+매체를 추가하면 양쪽 다 고쳐야 합니다.
+
+예전에는 Cloudflare Workers 구현이 대안으로 함께 있었는데, 거기에는 `/extract` 와 `/feed`
+가 없어 피드와 전문 경로가 통째로 빠졌습니다. 같은 정책을 두 곳에 유지하는 비용만 들고
+기능은 반쪽이라 지웠습니다. 서버는 **Vercel 하나**로 둡니다.
