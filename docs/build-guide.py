@@ -1,31 +1,44 @@
 #!/usr/bin/env python3
 """사용 설명서 PDF 를 만듭니다.
 
-본문은 src/guide.json 한 곳에만 있습니다. 앱 안의 설명서 화면도 같은 파일을
-읽으므로, 문구를 고칠 때는 그 JSON 만 고치고 이 스크립트를 다시 돌리면 됩니다.
-두 벌로 나눠 두면 한쪽만 고쳐져 설명이 어긋납니다.
+한국어 본문은 src/guide.json 한 곳에만 있습니다. 앱 안의 설명서 화면도 같은
+파일을 읽으므로, 문구를 고칠 때는 그 JSON 만 고치고 이 스크립트를 다시 돌리면
+됩니다. 두 벌로 나눠 두면 한쪽만 고쳐져 설명이 어긋납니다.
+
+영어판은 docs/guide.en.json 이고 PDF 로만 냅니다(앱에는 싣지 않습니다).
 
     pip install fpdf2
-    python3 docs/build-guide.py
+    python3 docs/build-guide.py            # 한국어 → public/
+    python3 docs/build-guide.py --lang en  # 영어 → docs/
 
-한글 폰트가 필요합니다. 나눔고딕 TTF 를 아래 FONT_DIR 에 두거나 경로를 바꾸세요.
-(https://hangeul.naver.com/font 에서 받을 수 있습니다.)
+한글 폰트가 필요합니다. 나눔고딕 TTF 를 FONT_DIR 에 두거나 --font 로 경로를
+주세요. (https://hangeul.naver.com/font 에서 받을 수 있습니다.)
 """
 
+import argparse
 import json
 import pathlib
-import sys
 
 from fpdf import FPDF
 from fpdf.enums import XPos, YPos
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-GUIDE = json.loads((ROOT / "src" / "guide.json").read_text(encoding="utf-8"))
-OUT = ROOT / "public" / "NewsTuner-Guide-KR.pdf"
 
-FONT_DIR = pathlib.Path(
-    sys.argv[1] if len(sys.argv) > 1 else "/usr/share/fonts/truetype/nanum"
-)
+# 언어별로 어느 본문을 읽어 어디에 낼지. 한국어판만 public/ 에 두어 앱과 함께
+# 배포되고, 영어판은 저장소에만 둡니다.
+LANGS = {
+    "ko": (ROOT / "src" / "guide.json", ROOT / "public" / "NewsTuner-Guide-KR.pdf"),
+    "en": (ROOT / "docs" / "guide.en.json", ROOT / "docs" / "NewsTuner-Guide-EN.pdf"),
+}
+
+ap = argparse.ArgumentParser()
+ap.add_argument("--lang", choices=LANGS, default="ko")
+ap.add_argument("--font", default="/usr/share/fonts/truetype/nanum")
+args = ap.parse_args()
+
+SRC, OUT = LANGS[args.lang]
+GUIDE = json.loads(SRC.read_text(encoding="utf-8"))
+FONT_DIR = pathlib.Path(args.font)
 
 INK = (26, 29, 33)
 DIM = (110, 116, 124)
@@ -68,7 +81,10 @@ def render(b):
     t = b.get("type")
 
     if t == "pagebreak":
-        pdf.add_page()
+        # 이미 새 쪽 머리에 있으면 넘기지 않습니다. 언어마다 글 길이가 달라 앞
+        # 내용이 저절로 넘어가 있을 때가 있는데, 거기서 또 넘기면 빈 쪽이 생깁니다.
+        if pdf.get_y() > 60:
+            pdf.add_page()
 
     elif t == "part":
         if pdf.get_y() > 215:

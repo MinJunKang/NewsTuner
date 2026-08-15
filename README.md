@@ -11,7 +11,20 @@
 
 처음 쓰는 사람에게는 [사용 설명서(PDF)](public/NewsTuner-Guide-KR.pdf) 를 보내 주세요.
 설치·설정·사용법이 정리되어 있습니다. `public/` 에 두어 앱과 함께 배포되므로,
-설정 탭의 "설명서 열기" 로도 같은 파일이 열립니다.
+설정 탭의 "설명서 열기" 로도 같은 내용이 열립니다.
+영어판은 [User Guide (English)](docs/NewsTuner-Guide-EN.pdf) 이고 저장소에만 둡니다.
+
+설명서 본문은 한국어가 `src/guide.json`, 영어가 `docs/guide.en.json` 입니다.
+문구를 고친 뒤 PDF 를 다시 만들려면:
+
+```bash
+pip install fpdf2
+python3 docs/build-guide.py             # 한국어 → public/
+python3 docs/build-guide.py --lang en   # 영어 → docs/
+```
+
+한국어판은 앱 화면과 PDF 가 같은 JSON 을 읽으므로 그 파일만 고치면 양쪽이 함께
+바뀝니다. 나눔고딕 TTF 가 필요하고, 경로는 `--font` 로 줍니다.
 
 ---
 

@@ -1,0 +1,157 @@
+{
+  "title": "News Tuner — User Guide",
+  "subtitle": "Read real English news, tap any word to see what it means,\nand ask questions about the article.",
+  "blocks": [
+    { "type": "section", "n": 1, "title": "What is this app?" },
+    {
+      "type": "body",
+      "text": "News Tuner picks a fresh English news story each day and rewrites it at the reading level you choose. While you read, tap anything you do not know and the meaning appears straight away."
+    },
+    { "type": "bullet", "label": "Tap a word", "text": "You get the meaning it carries in that sentence, not just its most common one." },
+    { "type": "bullet", "label": "Idioms are marked", "text": "Phrases whose meaning you cannot work out from the individual words are highlighted for you." },
+    { "type": "bullet", "label": "Whole sentences", "text": "Tap one and it is translated and broken down grammatically." },
+    { "type": "bullet", "label": "Ask about the story", "text": "A chat tab answers questions about the article you just read." },
+    { "type": "bullet", "label": "Word list", "text": "Save words as you go and play their pronunciation again later." },
+    {
+      "type": "box",
+      "lines": [
+        ["Note: the app is in Korean", true],
+        ["News Tuner was built for Korean speakers learning English. Articles are in English, but the interface and all explanations are in Korean. This guide gives the Korean button labels so you can find your way around.", false]
+      ]
+    },
+
+    { "type": "section", "n": 2, "title": "Installing it like an app" },
+    {
+      "type": "body",
+      "text": "There is nothing to download from an app store. You open a web address and add it to your home screen; from then on it launches from an icon like any other app. You only do this once."
+    },
+    { "type": "box", "lines": [["Address", true], ["https://minjunkang.github.io/NewsTuner/", false]] },
+    { "type": "sub", "title": "iPhone" },
+    { "type": "step", "n": 1, "text": "Open the address in Safari. This does not work in Chrome on iOS." },
+    { "type": "step", "n": 2, "text": "Tap the Share button at the bottom of the screen (a square with an arrow pointing up)." },
+    { "type": "step", "n": 3, "text": "Scroll down, tap 'Add to Home Screen', then tap 'Add'." },
+    { "type": "sub", "title": "Android" },
+    { "type": "step", "n": 1, "text": "Open the address in Chrome." },
+    { "type": "step", "n": 2, "text": "Tap the three-dot menu at the top right." },
+    { "type": "step", "n": 3, "text": "Tap 'Install app' or 'Add to Home screen'." },
+    { "type": "body", "text": "Once the icon appears on your home screen, launch it from there." },
+
+    { "type": "pagebreak" },
+    { "type": "section", "n": 3, "title": "First-time setup" },
+    {
+      "type": "body",
+      "text": "The Settings tab (설정) opens first. The app needs a way to fetch news before it can do anything. Pick one of the three options below — the earlier ones are simpler."
+    },
+    { "type": "sub", "title": "Option A — you were given a token (simplest)" },
+    {
+      "type": "body",
+      "text": "If whoever set this up for you sent a server token, that one field is all you need. The server address is already filled in, and there is nothing to sign up for."
+    },
+    { "type": "step", "n": 1, "text": "Paste the token into '서버 토큰' (server token)." },
+    { "type": "step", "n": 2, "text": "Leave '서버 주소' (server address) exactly as it is — it is already filled in." },
+    { "type": "step", "n": 3, "text": "When '준비됐습니다' (ready) appears, you are done. Leave the Gemini key field empty." },
+    { "type": "sub", "title": "Option B — use your own Gemini key" },
+    {
+      "type": "body",
+      "text": "If you have no token, create a free key from Google. Clear the '서버 주소' field when you do this."
+    },
+    { "type": "step", "n": 1, "text": "Go to aistudio.google.com in a browser and sign in with a Google account." },
+    { "type": "step", "n": 2, "text": "Create an API key and copy the long string it gives you." },
+    { "type": "step", "n": 3, "text": "Paste it into the 'GEMINI API KEY' field in Settings." },
+    {
+      "type": "box",
+      "lines": [
+        ["Worth knowing", true],
+        ["Finding articles often fails with this option. Google only enables news search once billing is attached to your account, and pulling the full text of an article needs a server. Option A or C works better.", false]
+      ]
+    },
+    { "type": "sub", "title": "Option C — run your own server (a bit more work)" },
+    {
+      "type": "body",
+      "text": "This runs everything under your own accounts rather than someone else's. All features work and any cost is billed to you. You need a GitHub account and about ten minutes."
+    },
+    { "type": "step", "n": 1, "text": "Fork the NewsTuner repository into your own GitHub account." },
+    { "type": "step", "n": 2, "text": "Sign up at vercel.com with that GitHub account and import the fork. No card is required." },
+    { "type": "step", "n": 3, "text": "Under Environment Variables add GEMINI_KEY (your Google key) and SHARED_TOKEN (any long string you choose), then deploy." },
+    { "type": "step", "n": 4, "text": "Add /api to the address Vercel gives you and put that in '서버 주소', then put your SHARED_TOKEN in '서버 토큰'." },
+    {
+      "type": "box",
+      "lines": [["Full instructions", true], ["Appendix A of the README at github.com/MinJunKang/NewsTuner walks through it step by step.", false]]
+    },
+    {
+      "type": "body",
+      "text": "Your key and address are stored only on that phone. They are never sent anywhere else, and you enter them once."
+    },
+
+    { "type": "part", "title": "Using the app" },
+    { "type": "section", "n": 4, "title": "Getting an article" },
+    { "type": "step", "n": 1, "text": "Tap the '읽기' (Read) tab at the bottom." },
+    { "type": "step", "n": 2, "text": "Choose a '분야' (field): news, world, tech and science, health, economy, law, culture or art." },
+    { "type": "step", "n": 3, "text": "Choose a '매체' (outlet) — which publication the story comes from." },
+    { "type": "step", "n": 4, "text": "Choose '난이도' (level) and '길이' (length). Start with '쉽게' (easier) and '보통' (medium)." },
+    { "type": "step", "n": 5, "text": "Tap '기사 찾기' (find an article) and wait. It takes ten seconds to a minute." },
+    {
+      "type": "box",
+      "lines": [
+        ["Leave the screen on while you wait", true],
+        ["Switching to another app or letting the screen lock cuts the request off. If that happens, just tap the button again.", false]
+      ]
+    },
+    {
+      "type": "body",
+      "text": "To steer the choice, type into '찾고 싶은 내용' (what you are looking for) — something like 'semiconductor export controls'. Leave it empty and you get whatever is newest."
+    },
+
+    { "type": "section", "n": 5, "title": "Looking things up as you read" },
+    { "type": "body", "text": "Three buttons above the article decide what a tap does. Choose one, then tap the text." },
+    { "type": "bullet", "label": "단어 뜻 (word)", "text": "Tap a single word for its meaning here, its pronunciation and an example." },
+    { "type": "bullet", "label": "표현·관용구 (phrase)", "text": "Tap anything highlighted in yellow. These are phrases that mean something other than the sum of their words." },
+    { "type": "bullet", "label": "문장 해석 (sentence)", "text": "Tap any sentence to have it translated and its structure explained." },
+    {
+      "type": "body",
+      "text": "In the panel that opens, the speaker icon plays the pronunciation and '단어장에 저장' saves the word. If the page is too bright, the moon icon at the top right switches to a dark background."
+    },
+
+    { "type": "section", "n": 6, "title": "Your word list" },
+    {
+      "type": "body",
+      "text": "Saved words collect in the '단어장' (word list) tab. Each one has a speaker icon to hear it again and '삭제' to remove it. The list stays on your phone between sessions."
+    },
+
+    { "type": "section", "n": 7, "title": "Asking about the article" },
+    {
+      "type": "body",
+      "text": "The '질의응답' (Q&A) tab answers questions about the story you just read. Ask in English and it replies in English; if your sentence is awkward, it offers a more natural version.\nFor example: 'What is the main point of this article?'"
+    },
+
+    { "type": "section", "n": 8, "title": "When something goes wrong" },
+    { "type": "bullet", "label": "It says no article was found", "text": "Switch to a different outlet or field and try again." },
+    { "type": "bullet", "label": "'모델이 혼잡합니다' (the model is busy)", "text": "It is briefly overloaded. Wait a moment and tap again." },
+    { "type": "bullet", "label": "'요청이 끊겼습니다' (the request was cut off)", "text": "You left the screen while it was working. Tap again and stay on the screen." },
+    { "type": "bullet", "label": "'출처를 확인하지 못했습니다' (source not verified)", "text": "The original link could not be found, so treat that article's details with caution." },
+    { "type": "bullet", "label": "The screen looks wrong", "text": "Close and reopen the app. If that does not help, open the address in a browser and refresh." },
+
+    { "type": "section", "n": 9, "title": "Helping improve the app" },
+    {
+      "type": "body",
+      "text": "Near the bottom of Settings there is an error log ('오류 기록') and a usage log ('사용량 기록'). Both stay on your phone and are never sent on their own. They go only when you tap '개발자에게 전송' (send to the developer)."
+    },
+    {
+      "type": "bullet",
+      "label": "Error log",
+      "text": "If an article fails or comes out wrong, tap send once. It reports when and from which outlet the problem happened, which is what makes it fixable."
+    },
+    {
+      "type": "bullet",
+      "label": "Usage log",
+      "text": "A tally of how much each feature is used. Sending it occasionally helps make the app faster and lighter."
+    },
+    {
+      "type": "box",
+      "lines": [
+        ["What is included?", true],
+        ["Timestamps, which outlet an error came from, and per-feature usage counts. Article text, the words you looked up and your key are never included. '복사' copies exactly what would be sent so you can read it first, and '비우기' clears the log.", false]
+      ]
+    }
+  ]
+}
