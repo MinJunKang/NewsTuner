@@ -368,6 +368,33 @@ const wentAway = (since) =>
   lastHiddenAt >= since ||
   (typeof document !== "undefined" && document.visibilityState === "hidden");
 
+// 기사 한 편을 만드는 데 든 토큰을 한곳에 모읍니다. 호출 단위 기록만으로는
+// "이 매체의 이 분량이 얼마짜리인가"를 알 수 없습니다. 목록·집필·교정이 각각
+// 몇 번 나갔는지는 기사마다 다르기 때문입니다.
+const newTally = () => ({ calls: 0, in: 0, cache: 0, think: 0, out: 0, total: 0 });
+function addTally(tally, u) {
+  if (!tally || !u) return;
+  tally.calls += 1;
+  tally.in += u.promptTokenCount || 0;
+  tally.cache += u.cachedContentTokenCount || 0;
+  tally.think += u.thoughtsTokenCount || 0;
+  tally.out += u.candidatesTokenCount || 0;
+  tally.total += u.totalTokenCount || 0;
+}
+
+// 완성된 기사 한 편을 매체·분량·글자수와 함께 남깁니다. 호출 기록과 같은 곳에
+// 쌓되 kind 로 구분합니다. 본문은 담지 않습니다. 글자수만 셉니다.
+export function logArticle(rec) {
+  try {
+    const key = "nt-usagelog";
+    const arr = JSON.parse(localStorage.getItem(key) || "[]");
+    arr.unshift({ t: new Date().toISOString(), kind: "article", ...rec });
+    localStorage.setItem(key, JSON.stringify(arr.slice(0, 400)));
+  } catch {
+    /* 기록 실패가 본 작업을 막으면 안 됩니다 */
+  }
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const findDetail = (details, type) =>
@@ -452,6 +479,7 @@ async function gemini({
   maxOutputTokens,
   thinkingLevel,
   purpose, // 사용량 기록에만 쓰입니다. 요청에는 들어가지 않습니다.
+  tally, // 주면 이 호출의 토큰을 여기에 더합니다(기사 한 편의 합계용).
 }) {
   const url = proxy
     ? `${proxy.replace(/\/$/, "")}/gemini/${model}`
@@ -537,6 +565,7 @@ async function gemini({
   if (data.usageMetadata) {
     console.debug("[nt-usage]", model, purpose, data.usageMetadata);
     logUsage(model, purpose, data.usageMetadata);
+    addTally(tally, data.usageMetadata);
   }
 
   const cand = data.candidates?.[0];
@@ -799,6 +828,8 @@ export async function fetchArticle({
       /* 진행 표시가 죽어도 본 작업은 계속합니다 */
     }
   };
+  // 이 기사 한 편에 든 토큰을 전부 여기에 모읍니다(목록·집필·교정).
+  const tally = newTally();
   const levelSpec = {
     easy: "CEFR B2. Natural news register, moderate sentence length.",
     // 이 단계는 학습자용으로 눅여 쓰지 말라고 구체적으로 지시해야 실제 기사 문체가 나옵니다.
@@ -860,7 +891,7 @@ something unrelated is not. If ${source.label} published nothing on it in ${rece
         listed = fresh;
       } else {
         tick("기사 찾는 중…");
-        listed = await findStories({ geminiKey, proxy, proxyToken, source, topic, focus, exclude });
+        listed = await findStories({ geminiKey, proxy, proxyToken, source, topic, focus, exclude, tally });
         listCache.set(cacheKey, { at: Date.now(), items: listed });
       }
       // 항상 1번을 쓰면 조건이 같을 때 매번 같은 기사가 나옵니다. 상위 후보
@@ -987,7 +1018,10 @@ ${full.paragraphs.join("\n\n")}`
       proxy,
       proxyToken,
       model: opts.model || MODELS.news,
-      purpose: opts.purpose || (useSearch ? "news:search" : "news:full"),
+      // 매체를 붙여 둡니다. 같은 집필 호출이라도 매체마다 원문 길이와 성공률이
+      // 달라서, 매체별로 갈라 봐야 어디가 비싼지 보입니다.
+      purpose: `${opts.purpose || (useSearch ? "news:search" : "news:full")}·${source.id}`,
+      tally,
       // 규칙은 매 호출 같은 글자라 시스템 지시로 보냅니다(ARTICLE_RULES 주석 참고).
       // system 에 null 을 주면 규칙 없이 부릅니다. 교정 호출이 그렇습니다.
       system: opts.system === undefined ? ARTICLE_RULES : opts.system || undefined,
@@ -1189,6 +1223,9 @@ ${full.paragraphs.join("\n\n")}`;
   let article = null;
   let cand = null;
   let aliveUrl = null;
+  // 실제로 기사를 쓴 경로입니다. aliveUrl 로는 갈음할 수 없습니다 — 피드에서 온
+  // 후보는 전문 추출에 실패해 검색으로 썼어도 aliveUrl 이 채워지기 때문입니다.
+  let usedFull = false;
   let lastFail = "error";
   let nth = 0;
   for (const { chosen, full } of attempts) {
@@ -1198,6 +1235,7 @@ ${full.paragraphs.join("\n\n")}`;
       article = r.article;
       cand = r.cand;
       aliveUrl = r.aliveUrl || null;
+      usedFull = !!full;
       // 실제로 쓴 기사를 기준으로 주소와 관련 기사를 정합니다.
       if (chosen) {
         picked = chosen;
@@ -1288,6 +1326,21 @@ ${full.paragraphs.join("\n\n")}`;
         .filter((r) => r.title && r.url && r.url !== article.url && looksLikeArticleUrl(r.url))
         .slice(0, 5);
 
+  // 완성된 기사의 크기를 남깁니다. 호출 기록만으로는 "이 매체에서 이만한 글을
+  // 뽑으면 얼마인가"를 알 수 없습니다. 매체별 비용을 글자수로 나누면 자당 단가가
+  // 나오고, 그러면 생성 전에 대략의 청구액을 짐작할 수 있습니다. 본문은 담지
+  // 않습니다. 세어 본 숫자만 남깁니다.
+  const bodyText = article.paragraphs.join(" ");
+  logArticle({
+    src: source.id,
+    level,
+    len: length,
+    chars: bodyText.length,
+    words: bodyText.split(/\s+/).filter(Boolean).length,
+    calls: tally.calls,
+    path: usedFull ? "full" : "search",
+  });
+
   return article;
 }
 
@@ -1343,7 +1396,7 @@ const STORIES_SCHEMA = {
 };
 
 // 본문은 가져오지 않습니다. 무엇이 있는지 제목과 링크만 알려줍니다.
-export async function findStories({ geminiKey, proxy, proxyToken, source, topic, focus, exclude }) {
+export async function findStories({ geminiKey, proxy, proxyToken, source, topic, focus, exclude, tally }) {
   // 피드가 있는 매체는 발행사 목록이 곧 진실입니다. 성공하면 검색 목록을
   // 아예 부르지 않습니다. 빈손이면(키워드가 최근 목록에 없음, 피드 응답
   // 실패 등) 아래 검색 경로가 그대로 이어받습니다.
@@ -1406,7 +1459,8 @@ Reply with JSON and nothing else:
       proxy,
       proxyToken,
       model,
-      purpose: "list",
+      purpose: `list·${source.id}`,
+      tally,
       thinkingLevel: level,
       // 생각 토큰이 출력 상한을 함께 깎을 수 있습니다(공식 문서도 "여유 있게
       // 잡고 finishReason 을 보라"고만 합니다). 재시도에서 생각을 medium 으로

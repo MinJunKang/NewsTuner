@@ -236,34 +236,95 @@ function usageEntries() {
   }
 }
 
-// 토큰 사용량을 단계별로 합쳐 한 장으로 만듭니다. 개별 호출을 그대로 보내면
-// 수백 줄이 되고, 정작 알고 싶은 것("어느 단계가 비용을 먹나")은 안 보입니다.
+// 100만 토큰당 단가입니다(2026년 8월). 3.7 Flash 는 2027-01-01 에 $1.50/$7.50 로
+// 오르므로 그때 여기를 고쳐야 합니다. 생각 토큰은 출력 단가로 청구됩니다.
+const PRICE = {
+  "gemini-3.7-flash": { in: 0.75, cached: 0.15, out: 3.75 },
+  "gemini-3.5-flash-lite": { in: 0.3, cached: 0.06, out: 2.5 },
+};
+
+// 호출 한 건의 값. 입력 토큰 수에는 캐시로 할인된 몫이 포함돼 있으므로 빼고 셉니다.
+function callCost(e) {
+  const p = PRICE[e?.m] || PRICE["gemini-3.7-flash"];
+  const cache = e?.cache || 0;
+  const plain = Math.max(0, (e?.in || 0) - cache);
+  return (plain * p.in + cache * p.cached + ((e?.out || 0) + (e?.think || 0)) * p.out) / 1e6;
+}
+
+// 단계 이름에서 매체를 떼어 냅니다. "news:full·guardian" → "guardian".
+const outletOf = (p) => (typeof p === "string" && p.includes("·") ? p.split("·").pop() : "");
+
+// 토큰 사용량을 한 장으로 만듭니다. 개별 호출을 그대로 보내면 수백 줄이 되고,
+// 정작 알고 싶은 것은 안 보입니다. 알고 싶은 것은 셋입니다 — 어느 단계가 비용을
+// 먹나, 매체마다 기사 한 편이 얼마인가, 글자당 얼마인가.
 // 숫자와 모델 이름만 담습니다. 기사 본문, 검색어, 단어, 주소는 담지 않습니다.
 function summarizeUsageLog(maxChars) {
   const entries = usageEntries();
   if (!entries.length) return null;
+  const calls = entries.filter((e) => e?.kind !== "article");
+  const articles = entries.filter((e) => e?.kind === "article");
 
   const groups = new Map();
-  for (const e of entries) {
+  for (const e of calls) {
     const key = `${e?.p || "?"} · ${e?.m || "?"}`;
-    const g = groups.get(key) || { n: 0, in: 0, cache: 0, tool: 0, think: 0, out: 0, total: 0 };
+    const g = groups.get(key) || { n: 0, in: 0, cache: 0, tool: 0, think: 0, out: 0, total: 0, usd: 0 };
     g.n += 1;
     for (const f of ["in", "cache", "tool", "think", "out", "total"]) g[f] += e?.[f] || 0;
+    g.usd += callCost(e);
     groups.set(key, g);
+  }
+
+  // 매체별로 비용(호출 기록)과 글자수(기사 기록)를 각각 모아 자당 단가를 냅니다.
+  const byOutlet = new Map();
+  const bucket = (k) => {
+    if (!byOutlet.has(k)) byOutlet.set(k, { usd: 0, chars: 0, arts: 0, calls: 0, full: 0 });
+    return byOutlet.get(k);
+  };
+  for (const e of calls) {
+    const o = outletOf(e?.p);
+    if (!o) continue;
+    const b = bucket(o);
+    b.usd += callCost(e);
+    b.calls += 1;
+  }
+  for (const a of articles) {
+    const b = bucket(a?.src || "?");
+    b.chars += a?.chars || 0;
+    b.arts += 1;
+    if (a?.path === "full") b.full += 1;
   }
 
   const times = entries.map((e) => (e?.t || "").slice(0, 10)).filter(Boolean).sort();
   const grand = [...groups.values()].reduce((a, g) => a + g.total, 0);
+  const grandUsd = [...groups.values()].reduce((a, g) => a + g.usd, 0);
   let body =
     `News Tuner 사용량 (빌드 ${__BUILD_ID__}, ${times[0] || "?"}~${times[times.length - 1] || "?"}, ` +
-    `${entries.length}회, 합계 ${grand.toLocaleString()} 토큰)\n` +
-    `단계·모델 | 호출 | 입력(캐시/검색주입) | 생각 | 출력 | 회당합계\n`;
+    `호출 ${calls.length}회 / 기사 ${articles.length}편, 합계 ${grand.toLocaleString()} 토큰 ≈ $${grandUsd.toFixed(4)})\n\n` +
+    `[매체별] 매체 | 기사 | 글자 | 비용 | 기사당 | 자당 | 호출/기사 | 전문경로\n`;
 
-  const rows = [...groups.entries()].sort((a, b) => b[1].total - a[1].total);
+  const outlets = [...byOutlet.entries()].sort((a, b) => b[1].usd - a[1].usd);
+  for (const [name, b] of outlets) {
+    const per = b.arts ? `$${(b.usd / b.arts).toFixed(4)}` : "—";
+    // 자당 단가는 소수점이 너무 길어 100자당으로 보여 줍니다.
+    const per100 = b.chars ? `$${((b.usd / b.chars) * 100).toFixed(5)}/100자` : "—";
+    const cpa = b.arts ? (b.calls / b.arts).toFixed(1) : "—";
+    body +=
+      `${name} | ${b.arts} | ${b.chars.toLocaleString()} | $${b.usd.toFixed(4)} | ${per} | ${per100} | ${cpa} | ${b.full}/${b.arts}\n`;
+  }
+
+  body += `\n[기사별] 매체 | 난이도·분량 | 글자 | 단어 | 호출 | 경로\n`;
+  for (const a of articles.slice(0, 20)) {
+    const line = `${a?.src || "?"} | ${a?.level || "?"}·${a?.len || "?"} | ${(a?.chars || 0).toLocaleString()} | ${(a?.words || 0).toLocaleString()} | ${a?.calls ?? "?"} | ${a?.path || "?"}\n`;
+    if ((body + line).length > maxChars) break;
+    body += line;
+  }
+
+  body += `\n[단계별] 단계·모델 | 호출 | 입력(캐시/검색주입) | 생각 | 출력 | 회당합계 | 비용\n`;
+  const rows = [...groups.entries()].sort((a, b) => b[1].usd - a[1].usd);
   for (const [key, g] of rows) {
     const line =
       `${key} | ${g.n} | ${g.in.toLocaleString()}(${g.cache.toLocaleString()}/${g.tool.toLocaleString()})` +
-      ` | ${g.think.toLocaleString()} | ${g.out.toLocaleString()} | ${Math.round(g.total / g.n).toLocaleString()}\n`;
+      ` | ${g.think.toLocaleString()} | ${g.out.toLocaleString()} | ${Math.round(g.total / g.n).toLocaleString()} | $${g.usd.toFixed(4)}\n`;
     if ((body + line).length > maxChars) break;
     body += line;
   }
