@@ -1,5 +1,6 @@
 /**
- * 선택 사항입니다. 이 워커를 쓰면 API 키가 폰이 아니라 Cloudflare에 저장됩니다.
+ * 권장합니다. 이 워커를 쓰면 API 키가 폰이 아니라 Cloudflare에 저장되고, 피드·전문
+ * 추출·링크 검사가 켜집니다. 없어도 앱은 돌지만 기사 품질과 비용이 나빠집니다.
  *
  * 배포
  *   npx wrangler deploy worker/index.js --name news-tuner-proxy

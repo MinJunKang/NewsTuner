@@ -1585,6 +1585,15 @@ export default function App() {
                   <div className="vocab__top">
                     <span className="vocab__word">
                       {v.word}
+                      {canSpeak && (
+                        <button
+                          className="speak"
+                          onClick={() => speak(v.word)}
+                          aria-label={`${v.word} 발음 듣기`}
+                        >
+                          🔊
+                        </button>
+                      )}
                       {v.kind && <span className="vocab__kind">{v.kind}</span>}
                     </span>
                     <button
@@ -1621,7 +1630,7 @@ export default function App() {
             </div>
 
             <div className="field">
-              <label htmlFor="px">프록시 주소 · 선택</label>
+              <label htmlFor="px">프록시 주소 · 권장</label>
               <input
                 id="px"
                 type="url"
@@ -1632,7 +1641,7 @@ export default function App() {
               />
               <small>
                 넣으면 키를 기기에 두지 않고 프록시가 대신 호출합니다. 비워 두면 브라우저에서 직접
-                호출합니다.
+                호출하는데, 기사 품질과 비용이 나빠질 수 있습니다.
               </small>
             </div>
 

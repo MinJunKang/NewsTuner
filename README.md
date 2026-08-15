@@ -156,7 +156,7 @@ src/App.jsx              화면 전체
 src/styles.css           스타일
 public/                  아이콘, manifest, 서비스 워커
 .github/workflows/       Pages 자동 배포
-worker/                  선택 사항. 키를 기기에 두지 않는 프록시
+worker/                  권장. 키를 기기에 두지 않는 프록시
 ```
 
 ## 부록 A — Vercel 로 프록시 두기 (권장, 터미널 불필요)
