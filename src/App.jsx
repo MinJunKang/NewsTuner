@@ -1676,6 +1676,27 @@ export default function App() {
         {/* ---------- settings ---------- */}
         {tab === "set" && (
           <div className="settings">
+            {/* public/ 에 함께 배포되므로 앱과 같은 주소에서 열립니다. GitHub 링크로
+                내보내면 느리고, 서비스 워커가 캐시하지 못해 오프라인에서 안 열립니다.
+                base 경로는 배포 위치마다 달라지므로 BASE_URL 을 붙입니다. */}
+            <div className="field">
+              <label>사용 설명서</label>
+              <div className="row__chips">
+                <a
+                  className="paste__btn"
+                  href={`${import.meta.env.BASE_URL}NewsTuner-Guide-KR.pdf`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  설명서 열기
+                </a>
+              </div>
+              <small>
+                설치·설정·사용법이 정리되어 있습니다. 처음 쓰는 사람에게 그대로 보내 주어도
+                됩니다.
+              </small>
+            </div>
+
             <div className="field">
               <label htmlFor="gk">GEMINI API KEY</label>
               <input

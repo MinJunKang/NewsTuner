@@ -9,8 +9,9 @@
 - **단어·문장 풀이** — Gemini 3.5 Flash-Lite
 - **기사 토론** — Gemini 3.7 Flash
 
-처음 쓰는 사람에게는 [사용 설명서(PDF)](docs/NewsTuner-Guide-KR.pdf) 를 보내 주세요.
-설치·설정·사용법이 3쪽에 정리되어 있습니다.
+처음 쓰는 사람에게는 [사용 설명서(PDF)](public/NewsTuner-Guide-KR.pdf) 를 보내 주세요.
+설치·설정·사용법이 정리되어 있습니다. `public/` 에 두어 앱과 함께 배포되므로,
+설정 탭의 "설명서 열기" 로도 같은 파일이 열립니다.
 
 ---
 

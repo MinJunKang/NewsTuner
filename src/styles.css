@@ -509,6 +509,13 @@ a {
   color: var(--ink);
 }
 
+/* 링크를 이 모양으로 쓸 때가 있습니다(설명서 열기). 옆의 버튼들과 같아 보여야
+   하므로 밑줄과 링크색을 지웁니다. */
+a.paste__btn {
+  display: inline-block;
+  text-decoration: none;
+}
+
 .disclaimer {
   margin-top: 18px;
   padding-top: 12px;
