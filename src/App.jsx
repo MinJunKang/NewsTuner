@@ -236,10 +236,23 @@ function usageEntries() {
   }
 }
 
-// 단가표와 금액 환산은 여기에 두지 않습니다. 이 저장소는 공개이고 설정 화면은
-// 앱을 쓰는 누구에게나 보이므로, 코드에 단가를 박으면 운영 비용이 그대로 밖으로
-// 나갑니다. 기록은 토큰·글자수 같은 원시 수치만 남기고, 금액 환산은 이 숫자를
-// 받아 앱 밖에서 합니다. 2027-01-01 단가 인상 때 고칠 자리가 없다는 이점도 있습니다.
+// 100만 토큰당 단가입니다(2026년 8월 기준). 3.7 Flash 는 2027-01-01 에 $1.50/$7.50
+// 로 오르므로 그때 여기를 고쳐야 합니다. 생각 토큰은 출력 단가로 청구됩니다.
+//
+// 금액은 사용량 기록에만 씁니다. 이 요약은 화면에 그려지지 않고 "복사"와
+// "바로 전송" 으로만 나갑니다. README 와 화면에는 청구액을 적지 않습니다.
+const PRICE = {
+  "gemini-3.7-flash": { in: 0.75, cached: 0.15, out: 3.75 },
+  "gemini-3.5-flash-lite": { in: 0.3, cached: 0.06, out: 2.5 },
+};
+
+// 호출 한 건의 값. 입력 토큰 수에는 캐시로 할인된 몫이 포함돼 있으므로 빼고 셉니다.
+function callCost(e) {
+  const p = PRICE[e?.m] || PRICE["gemini-3.7-flash"];
+  const cache = e?.cache || 0;
+  const plain = Math.max(0, (e?.in || 0) - cache);
+  return (plain * p.in + cache * p.cached + ((e?.out || 0) + (e?.think || 0)) * p.out) / 1e6;
+}
 
 // 단계 이름에서 매체를 떼어 냅니다. "news:full·guardian" → "guardian".
 const outletOf = (p) => (typeof p === "string" && p.includes("·") ? p.split("·").pop() : "");
@@ -257,24 +270,25 @@ function summarizeUsageLog(maxChars) {
   const groups = new Map();
   for (const e of calls) {
     const key = `${e?.p || "?"} · ${e?.m || "?"}`;
-    const g = groups.get(key) || { n: 0, in: 0, cache: 0, tool: 0, think: 0, out: 0, total: 0 };
+    const g = groups.get(key) || { n: 0, in: 0, cache: 0, tool: 0, think: 0, out: 0, total: 0, usd: 0 };
     g.n += 1;
     for (const f of ["in", "cache", "tool", "think", "out", "total"]) g[f] += e?.[f] || 0;
+    g.usd += callCost(e);
     groups.set(key, g);
   }
 
-  // 매체별로 토큰(호출 기록)과 글자수(기사 기록)를 각각 모읍니다. 100자당 토큰이
-  // 나오면 분량으로 청구량을 미리 가늠할 수 있습니다. 모델마다 단가가 다르므로
-  // 금액으로 바꿀 때는 모델별로 나눠 봐야 하고, 그건 아래 [단계별] 표에 있습니다.
+  // 매체별로 비용·토큰(호출 기록)과 글자수(기사 기록)를 모읍니다. 100자당 단가가
+  // 나오면 분량만으로 생성 전에 청구액을 가늠할 수 있습니다.
   const byOutlet = new Map();
   const bucket = (k) => {
-    if (!byOutlet.has(k)) byOutlet.set(k, { tok: 0, chars: 0, arts: 0, calls: 0, full: 0 });
+    if (!byOutlet.has(k)) byOutlet.set(k, { usd: 0, tok: 0, chars: 0, arts: 0, calls: 0, full: 0 });
     return byOutlet.get(k);
   };
   for (const e of calls) {
     const o = outletOf(e?.p);
     if (!o) continue;
     const b = bucket(o);
+    b.usd += callCost(e);
     b.tok += e?.total || 0;
     b.calls += 1;
   }
@@ -287,18 +301,20 @@ function summarizeUsageLog(maxChars) {
 
   const times = entries.map((e) => (e?.t || "").slice(0, 10)).filter(Boolean).sort();
   const grand = [...groups.values()].reduce((a, g) => a + g.total, 0);
+  const grandUsd = [...groups.values()].reduce((a, g) => a + g.usd, 0);
   let body =
     `News Tuner 사용량 (빌드 ${__BUILD_ID__}, ${times[0] || "?"}~${times[times.length - 1] || "?"}, ` +
-    `호출 ${calls.length}회 / 기사 ${articles.length}편, 합계 ${grand.toLocaleString()} 토큰)\n\n` +
-    `[매체별] 매체 | 기사 | 글자 | 토큰 | 기사당토큰 | 100자당토큰 | 호출/기사 | 전문경로\n`;
+    `호출 ${calls.length}회 / 기사 ${articles.length}편, 합계 ${grand.toLocaleString()} 토큰 = $${grandUsd.toFixed(4)})\n\n` +
+    `[매체별] 매체 | 기사 | 글자 | 토큰 | 비용 | 기사당 | 100자당 | 호출/기사 | 전문경로\n`;
 
-  const outlets = [...byOutlet.entries()].sort((a, b) => b[1].tok - a[1].tok);
+  const outlets = [...byOutlet.entries()].sort((a, b) => b[1].usd - a[1].usd);
   for (const [name, b] of outlets) {
-    const per = b.arts ? Math.round(b.tok / b.arts).toLocaleString() : "—";
-    const per100 = b.chars ? ((b.tok / b.chars) * 100).toFixed(1) : "—";
+    const per = b.arts ? `$${(b.usd / b.arts).toFixed(4)}` : "—";
+    // 자당 단가는 0 이 너무 많이 붙어 100자 기준으로 보여 줍니다.
+    const per100 = b.chars ? `$${((b.usd / b.chars) * 100).toFixed(5)}` : "—";
     const cpa = b.arts ? (b.calls / b.arts).toFixed(1) : "—";
     body +=
-      `${name} | ${b.arts} | ${b.chars.toLocaleString()} | ${b.tok.toLocaleString()} | ${per} | ${per100} | ${cpa} | ${b.full}/${b.arts}\n`;
+      `${name} | ${b.arts} | ${b.chars.toLocaleString()} | ${b.tok.toLocaleString()} | $${b.usd.toFixed(4)} | ${per} | ${per100} | ${cpa} | ${b.full}/${b.arts}\n`;
   }
 
   body += `\n[기사별] 매체 | 난이도·분량 | 글자 | 단어 | 호출 | 경로\n`;
@@ -308,12 +324,13 @@ function summarizeUsageLog(maxChars) {
     body += line;
   }
 
-  body += `\n[단계별] 단계·모델 | 호출 | 입력(캐시/검색주입) | 생각 | 출력 | 회당합계\n`;
-  const rows = [...groups.entries()].sort((a, b) => b[1].total - a[1].total);
+  body += `\n[단계별] 단계·모델 | 호출 | 입력(캐시/검색주입) | 생각 | 출력 | 회당합계 | 비용\n`;
+  const rows = [...groups.entries()].sort((a, b) => b[1].usd - a[1].usd);
   for (const [key, g] of rows) {
     const line =
       `${key} | ${g.n} | ${g.in.toLocaleString()}(${g.cache.toLocaleString()}/${g.tool.toLocaleString()})` +
-      ` | ${g.think.toLocaleString()} | ${g.out.toLocaleString()} | ${Math.round(g.total / g.n).toLocaleString()}\n`;
+      ` | ${g.think.toLocaleString()} | ${g.out.toLocaleString()} | ${Math.round(g.total / g.n).toLocaleString()}` +
+      ` | $${g.usd.toFixed(4)}\n`;
     if ((body + line).length > maxChars) break;
     body += line;
   }
@@ -1757,8 +1774,9 @@ export default function App() {
                 어느 기능이 토큰을 얼마나 쓰는지 이 기기에만 남습니다. 자동으로 전송되지
                 않으며, "바로 전송"을 누르면 단계별 집계가 개발자에게 전달되어 비용 개선에
                 반영됩니다. 담기는 것은 호출 시각, 모델 이름, 단계 이름(기사 집필·단어
-                풀이 같은), 토큰 수뿐입니다. 기사 본문, 검색어, 찾아본 단어, API 키는
-                담기지 않으며, "복사"를 누르면 보내는 내용을 그대로 확인할 수 있습니다.
+                풀이 같은), 토큰 수, 기사 글자수, 그리고 이것들로 계산한 추정 비용뿐입니다.
+                기사 본문, 검색어, 찾아본 단어, API 키는 담기지 않으며, "복사"를 누르면
+                보내는 내용을 그대로 확인할 수 있습니다.
               </small>
             </div>
 
