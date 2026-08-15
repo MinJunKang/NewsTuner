@@ -581,6 +581,38 @@ const Chip = ({ on, children, ...rest }) => (
 
 const Spinner = ({ label }) => <p className="spinner">{label}</p>;
 
+// 예문에서 그 단어가 실제로 쓰인 자리를 찾아 [앞, 쓰인 부분, 뒤] 로 잘라 줍니다.
+// 저장된 형태와 예문 속 형태가 다를 수 있어(surge 를 저장했는데 예문은 surged),
+// 그대로 못 찾으면 어간으로 한 번 더 찾습니다. 구(phrase)는 자리표시자가 섞여
+// 있으므로(take (something) for granted) 괄호를 걷어내고도 시도합니다.
+// 끝내 못 찾으면 null 을 돌려주고 문장을 그대로 씁니다. 강조가 빠지는 것보다
+// 문장이 깨지는 쪽이 훨씬 나쁩니다.
+function markUsage(example, word) {
+  if (typeof example !== "string" || typeof word !== "string" || !example || !word) return null;
+  const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const bare = word.replace(/\([^)]*\)/g, " ").replace(/\s+/g, " ").trim();
+  const stem = bare.replace(/(ies|ied|es|ed|ing|s|d)$/i, "");
+
+  const tries = [word, bare].filter(Boolean).map((w) => new RegExp(`\\b${esc(w)}\\b`, "i"));
+
+  // "take (something) for granted" 는 예문에서 목적어가 사이에 끼어 들어옵니다
+  // ("take clean water for granted"). 자리표시자 자리를 몇 단어까지 건너뛰게 둡니다.
+  if (/\([^)]*\)/.test(word)) {
+    const segs = word.split(/\([^)]*\)/).map((s) => s.trim()).filter(Boolean);
+    if (segs.length >= 2)
+      tries.push(new RegExp(`\\b${segs.map(esc).join("[\\w\\s'’-]{1,40}?")}\\b`, "i"));
+  }
+
+  if (stem.length >= 4 && !stem.includes(" ")) tries.push(new RegExp(`\\b${esc(stem)}\\w*\\b`, "i"));
+
+  for (const re of tries) {
+    const m = example.match(re);
+    if (m && m.index != null)
+      return [example.slice(0, m.index), m[0], example.slice(m.index + m[0].length)];
+  }
+  return null;
+}
+
 // 기기에 내장된 음성 합성으로 읽어줍니다. API 호출이 없어 비용이 들지 않고
 // 오프라인에서도 됩니다. 사용자 탭에서 불러야 iOS 에서 소리가 납니다.
 const canSpeak = typeof window !== "undefined" && "speechSynthesis" in window;
@@ -1604,7 +1636,30 @@ export default function App() {
                     </button>
                   </div>
                   <p className="vocab__ko">{v.ko}</p>
-                  {v.example && <p className="vocab__ex">{v.example}</p>}
+                  {v.example && (
+                    <p className="vocab__ex">
+                      {(() => {
+                        const cut = markUsage(v.example, v.word);
+                        if (!cut) return v.example;
+                        return (
+                          <>
+                            {cut[0]}
+                            <b className="vocab__hit">{cut[1]}</b>
+                            {cut[2]}
+                          </>
+                        );
+                      })()}
+                      {canSpeak && (
+                        <button
+                          className="speak speak--sm"
+                          onClick={() => speak(v.example)}
+                          aria-label="예문 듣기"
+                        >
+                          🔊
+                        </button>
+                      )}
+                    </p>
+                  )}
                 </li>
               ))}
             </ul>

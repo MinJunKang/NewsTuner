@@ -1140,6 +1140,31 @@ a {
   color: var(--faint);
 }
 
+/* 예문 안에서 그 단어가 실제로 쓰인 자리입니다. 색을 쓰지 않고 밝기와 밑줄로만
+   드러냅니다(색 사용 규칙은 파일 머리말 참고). */
+.vocab__hit {
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+/* 문장 끝에 붙는 작은 스피커. 단어 옆의 것과 같은 크기면 목록이 시끄러워집니다. */
+.speak--sm {
+  margin-left: 6px;
+  padding: 0 2px;
+  border: none;
+  font-size: 11px;
+  line-height: 1;
+  vertical-align: baseline;
+  opacity: 0.75;
+}
+
+.speak--sm:hover {
+  opacity: 1;
+}
+
 /* ---------- settings ------------------------------------------------ */
 
 .settings {
