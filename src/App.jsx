@@ -26,9 +26,14 @@ const FIELDS = [
         domain: "npr.org",
         feed: "https://feeds.npr.org/1001/rss.xml",
         window: "the last few days", note: "방송 원고라 말하는 리듬에 가까움" },
-      { id: "ap", length: "mid", label: "AP News", short: "AP", freq: "89.7",
-        domain: "apnews.com",
-        window: "the last few days", note: "짧고 명확한 통신사 문체" },
+      // 원래 이 자리는 AP 였습니다. AP 는 RSS 를 공식 폐지해 피드를 붙일 수 없고,
+      // 그래서 늘 검색 경로로 떨어지는데 그라운딩이 apnews.com 에서 결과를 못 가져와
+      // 모델이 주소를 지어냈습니다(2026-08 기록에 "목록전멸 — 지어낸 목록으로 봄"
+      // 4회). 피드가 있는 매체로 바꿔야 이 자리가 제 몫을 합니다.
+      { id: "guardian", length: "mid", label: "The Guardian US", short: "GUARD", freq: "89.7",
+        domain: "theguardian.com",
+        feed: "https://www.theguardian.com/us-news/rss",
+        window: "the last few days", note: "미국 뉴스 전반, 평이하고 또렷한 문장" },
       { id: "propub", length: "long", label: "ProPublica", short: "PROPUB", freq: "90.1",
         domain: "propublica.org",
         feed: "https://www.propublica.org/feeds/propublica/main",

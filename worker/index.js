@@ -28,6 +28,10 @@ const ALLOWED_MODELS = new Set([
 // 앱이 쓰는 매체만 받습니다. src/App.jsx 의 domain 값과 같게 유지하세요.
 const ALLOWED_HOSTS = new Set([
   "npr.org",
+  "theguardian.com",
+  // AP 는 매체 목록에서 뺐지만(피드 없음 → 지어낸 주소 문제) 여기서는 지우지
+  // 않습니다. 허용 목록에 없는 도메인은 /check 가 검사 없이 통과시키므로, 옛
+  // 빌드를 실행 중인 기기에서 지어낸 AP 주소가 오히려 화면까지 갈 수 있습니다.
   "apnews.com",
   "propublica.org",
   "scotusblog.com",

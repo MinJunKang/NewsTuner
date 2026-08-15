@@ -351,6 +351,23 @@ export function logUsage(model, purpose, u) {
   }
 }
 
+// 브라우저는 배경으로 넘어간 탭의 통신을 끊습니다(iOS Safari 가 특히 공격적이고,
+// 안드로이드도 메모리가 모자라면 같은 일을 합니다). 그런데 그렇게 끊긴 요청은
+// fetch 에서 연결 끊김과 완전히 같은 모양으로 도착합니다. 구분하지 않으면 화면이
+// "연결을 확인하세요" 라고 안내하고, 사용자는 멀쩡한 와이파이를 붙들고 헤맵니다.
+// 리스너를 요청마다 붙였다 떼면 새기 쉬우므로, 한 번만 걸어 두고 시각만 남깁니다.
+let lastHiddenAt = 0;
+if (typeof document !== "undefined") {
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") lastHiddenAt = Date.now();
+  });
+}
+// 이 요청이 나가 있는 동안 화면이 한 번이라도 숨겨졌는지. 지금 숨어 있는 중이면
+// visibilitychange 가 아직 안 왔을 수도 있으므로 현재 상태도 함께 봅니다.
+const wentAway = (since) =>
+  lastHiddenAt >= since ||
+  (typeof document !== "undefined" && document.visibilityState === "hidden");
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const findDetail = (details, type) =>
@@ -463,12 +480,19 @@ async function gemini({
   const payload = JSON.stringify(body);
   const send = async () => {
     let res;
+    // 이 시도가 시작된 시각입니다. 재시도마다 새로 잡아야, 초반에 잠깐 화면을
+    // 벗어났다 돌아온 뒤 한참 있다 난 진짜 통신 오류까지 배경 탓으로 돌리지 않습니다.
+    const sentAt = Date.now();
     try {
       res = await fetch(url, { method: "POST", headers, body: payload });
     } catch {
       // Safari 는 "Load failed" 같은 영어 한 줄만 남깁니다. 연결 끊김, 프록시
-      // 무응답, CORS 실패가 전부 이 모양으로 옵니다.
-      throw new Error("네트워크 오류로 요청이 전달되지 못했습니다. 연결을 확인하고 다시 시도해 주세요.");
+      // 무응답, CORS 실패, 그리고 배경 전환에 의한 중단이 전부 이 모양으로 옵니다.
+      throw new Error(
+        wentAway(sentAt)
+          ? "다른 화면에 다녀오는 동안 요청이 끊겼습니다. 화면을 열어 둔 채로 다시 시도해 주세요."
+          : "네트워크 오류로 요청이 전달되지 못했습니다. 연결을 확인하고 다시 시도해 주세요."
+      );
     }
     let data;
     try {
