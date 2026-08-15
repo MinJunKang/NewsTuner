@@ -1355,7 +1355,9 @@ export default function App() {
         </div>
       )}
 
-      <main className="main">
+      {/* 기사 배경 설정이 대화·단어장·설정 화면까지 함께 따라갑니다. 예전에는
+          기사만 밝아지고 나머지는 늘 어두워서 탭을 옮길 때마다 눈이 놀랐습니다. */}
+      <main className={"main" + (dark ? "" : " on-paper")}>
         {/* ---------- read ---------- */}
         {tab === "read" && (
           <>
@@ -1857,7 +1859,7 @@ export default function App() {
             </div>
 
             <div className="field">
-              <label>기사 배경</label>
+              <label>화면 배경</label>
               <div className="row__chips">
                 <Chip on={!dark} onClick={() => setDark(false)}>
                   밝게
@@ -1867,8 +1869,8 @@ export default function App() {
                 </Chip>
               </div>
               <small>
-                기사를 읽는 화면의 배경입니다. 읽기 화면 오른쪽 위 ☾ 버튼으로도 바꿀 수
-                있습니다. 나머지 화면은 원래 어두운 색입니다.
+                기사·대화·단어장·설정 화면의 배경입니다. 읽기 화면 오른쪽 위 ☾ 버튼으로도
+                바꿀 수 있습니다. 위쪽 다이얼과 아래쪽 탭은 늘 어두운 색입니다.
               </small>
             </div>
 
@@ -1991,7 +1993,9 @@ export default function App() {
 
       {/* ---------- composer ---------- */}
       {tab === "talk" && article && (
-        <div className="composer">
+        // 입력줄은 main 밖에 고정으로 떠 있어서 테마를 따로 걸어 줘야 합니다.
+        // 안 그러면 대화창만 밝고 아래 입력줄만 어두운 모양이 됩니다.
+        <div className={"composer" + (dark ? "" : " on-paper")}>
           {/* 한글 입력 중 Enter 는 글자를 확정하는 키라, 조합 중에는 보내지 않습니다. */}
           <input
             value={draft}

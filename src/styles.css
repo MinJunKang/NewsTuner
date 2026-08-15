@@ -31,6 +31,11 @@
   --paper-warn: #b3392a;
   /* 고른 항목을 표시하는 중립 바탕. 색 대신 밝기로 구분합니다. */
   --on-bg: rgba(255, 255, 255, 0.07);
+  /* 입력칸·말풍선처럼 바탕보다 한 겹 들어간 면. 밝은 테마에서 갈아끼워야 하므로
+     값을 곳곳에 박아 두지 않고 토큰으로 둡니다. */
+  --sunken: #161f28;
+  /* 액센트 바탕 위에 얹는 글자색(주 버튼). */
+  --onsignal: #06231f;
   --mono: "IBM Plex Mono", ui-monospace, monospace;
   --serif: "Newsreader", Georgia, serif;
   --sans: "Inter", system-ui, sans-serif;
@@ -284,7 +289,7 @@ a {
 .focus {
   width: 100%;
   margin-top: 10px;
-  background: #161f28;
+  background: var(--sunken);
   border: 1px solid var(--line);
   border-radius: 3px;
   padding: 9px 11px;
@@ -360,7 +365,7 @@ a {
   display: block;
   width: 100%;
   margin-top: 8px;
-  background: #161f28;
+  background: var(--sunken);
   border: 1px solid var(--line);
   border-radius: 3px;
   padding: 10px 11px;
@@ -572,7 +577,7 @@ a {
   margin-top: 12px;
   padding: 12px;
   background: var(--signal);
-  color: #06231f;
+  color: var(--onsignal);
   font-family: var(--mono);
   font-size: 12px;
   font-weight: 600;
@@ -588,6 +593,30 @@ a {
 .btn:disabled {
   background: #24313c;
   color: var(--faint);
+}
+
+/* 밝은 테마를 쓰는 영역입니다. 기사만 종이색이고 나머지는 늘 어두웠는데, 대화·
+   단어장·설정까지 같이 따라가게 합니다. 안에 있는 요소를 하나하나 고치는 대신
+   크롬 토큰 자체를 종이 값으로 갈아 끼웁니다. 그러면 var(--ink) 를 쓰던 것들이
+   전부 알아서 어두운 글자가 됩니다.
+   기사(.article)는 자기 배경을 따로 칠하므로 이 안에서도 그대로 동작합니다. */
+.on-paper {
+  --bg: var(--paper);
+  --panel: #ebe7db;
+  --line: var(--paper-line);
+  --ink: var(--paper-ink);
+  --dim: var(--paper-dim);
+  /* 종이 위에서 --faint 를 원래 값(어두운 청회색)으로 두면 배경과 붙어 버립니다.
+     본문보다 흐리되 읽히는 선까지만 낮춥니다. */
+  --faint: #878d94;
+  --sunken: #fdfcf7;
+  --on-bg: rgba(0, 0, 0, 0.06);
+  /* 밝은 민트는 크림색 위에서 대비가 1.6:1 밖에 안 나옵니다. 종이용으로 바꿉니다. */
+  --signal: var(--paper-accent);
+  --warn: var(--paper-warn);
+  --onsignal: #ffffff;
+  background: var(--paper);
+  color: var(--paper-ink);
 }
 
 /* ---------- body ---------------------------------------------------- */
@@ -1011,9 +1040,11 @@ a {
   color: var(--ink);
 }
 
+/* 입력칸용 --sunken 을 쓰면 밝은 테마에서 흰 말풍선이 크림색 바탕에 묻힙니다.
+   말풍선은 한 겹 얹힌 면이라 --panel 이 맞습니다. */
 .bubble--ai {
   align-self: flex-start;
-  background: #161f28;
+  background: var(--panel);
 }
 
 .seed {
@@ -1047,7 +1078,7 @@ a {
 .composer input {
   flex: 1;
   min-width: 0;
-  background: #161f28;
+  background: var(--sunken);
   border: 1px solid var(--line);
   border-radius: 3px;
   padding: 10px 12px;
@@ -1062,7 +1093,7 @@ a {
 .composer button {
   padding: 0 16px;
   background: var(--signal);
-  color: #06231f;
+  color: var(--onsignal);
   font-family: var(--mono);
   font-size: 12px;
   font-weight: 600;
@@ -1143,11 +1174,17 @@ a {
 /* 예문 안에서 그 단어가 실제로 쓰인 자리입니다. 사전 시트와 단어장이 같은 모양을
    씁니다. 색을 쓰지 않고 밝기와 밑줄로만 드러냅니다(규칙은 파일 머리말 참고). */
 .ex__hit {
-  color: var(--ink);
   font-weight: 600;
   text-decoration: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: 3px;
+}
+
+/* 사전 시트는 예문 자체가 또렷해서 굵기와 밑줄만으로 충분합니다. 단어장은 예문이
+   흐리게 깔려 있어 그것만으로는 잘 안 보이는데, --ink 까지 올리면 그 부분만
+   허옇게 튀어나옵니다. 한 단계만 올립니다. */
+.vocab__ex .ex__hit {
+  color: var(--dim);
 }
 
 /* 문장 끝에 붙는 작은 스피커. 단어 옆의 것과 같은 크기면 목록이 시끄러워집니다. */
@@ -1186,7 +1223,7 @@ a {
 
 .field input {
   width: 100%;
-  background: #161f28;
+  background: var(--sunken);
   border: 1px solid var(--line);
   border-radius: 3px;
   padding: 10px 12px;
