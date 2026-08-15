@@ -1267,9 +1267,23 @@ a.paste__btn {
   z-index: 40;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  /* 끝까지 내려도 뒤에 있는 화면이 따라 움직이지 않게 막습니다. */
+  overscroll-behavior: contain;
+  /* 세로로만 끕니다. 글자 위에서 손가락을 대면 스크롤 대신 글자 선택이 시작돼
+     화면이 안 내려가는 일이 있어, 아래 user-select 와 함께 막습니다. */
+  touch-action: pan-y;
+  -webkit-user-select: none;
+  user-select: none;
   background: var(--bg);
   color: var(--ink);
-  padding: 0 18px calc(28px + env(safe-area-inset-bottom));
+  /* 아래 닫기 바에 글이 가리지 않게 그만큼 비워 둡니다. */
+  padding: 0 18px calc(96px + env(safe-area-inset-bottom));
+}
+
+/* 주소처럼 옮겨 적어야 하는 것은 선택할 수 있어야 합니다. */
+.guide__box {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 /* 아무리 내려가도 닫기가 손에 닿아야 합니다. */
@@ -1364,6 +1378,32 @@ a.paste__btn {
 
 .guide__box b {
   display: block;
+}
+
+/* 닫기는 화면 아래에 고정합니다. 오른쪽 맨 위에 두면 큰 화면에서 한 손으로
+   닿지 않고, 읽다가 닫으려면 매번 위로 올라가야 합니다. */
+.guide__closebar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 41;
+  padding: 10px 18px calc(10px + env(safe-area-inset-bottom));
+  background: var(--bg);
+  border-top: 1px solid var(--line);
+}
+
+.guide__closebar button {
+  display: block;
+  width: 100%;
+  padding: 13px;
+  border: 1px solid var(--faint);
+  border-radius: 3px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  color: var(--ink);
 }
 
 .guide__box span {

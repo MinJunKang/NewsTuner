@@ -666,6 +666,9 @@ function Guide({ onClose, dark }) {
       {GUIDE.blocks.map((b, i) => (
         <GuideBlock key={i} b={b} />
       ))}
+      <div className="guide__closebar">
+        <button onClick={onClose}>닫기</button>
+      </div>
     </section>
   );
 }
