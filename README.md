@@ -5,9 +5,12 @@
 
 키는 Gemini 하나만 있으면 됩니다.
 
-- **뉴스 수집** — Gemini 3.6 Flash + Google 검색 그라운딩
+- **뉴스 수집** — Gemini 3.7 Flash + Google 검색 그라운딩
 - **단어·문장 풀이** — Gemini 3.5 Flash-Lite
-- **기사 토론** — Gemini 3.6 Flash
+- **기사 토론** — Gemini 3.7 Flash
+
+처음 쓰는 사람에게는 [사용 설명서(PDF)](docs/NewsTuner_사용설명서.pdf) 를 보내 주세요.
+설치·설정·사용법이 3쪽에 정리되어 있습니다.
 
 ---
 
