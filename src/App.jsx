@@ -747,6 +747,12 @@ export default function App() {
       setPhrases([]);
       // 60개까지만 남깁니다. 더 쌓이면 고를 후보가 없어집니다.
       if (a.url) setSeen((prev) => [a.url, ...prev.filter((u) => u !== a.url)].slice(0, 60));
+      // 원하는 내용을 찾았으니 키워드는 비웁니다. 남겨 두면 다음에 아무 생각 없이
+      // 눌렀을 때 지난번 조건으로 또 찾게 되고, 매번 지우고 다시 써야 합니다.
+      // 실패했을 때는 그대로 둡니다. 조건을 고쳐 다시 눌러야 하기 때문입니다.
+      // 관련 기사에서 고른 경우(story)는 키워드로 찾은 것이 아니므로 건드리지
+      // 않습니다. 목록을 훑는 중에 검색어가 사라지면 오히려 당황스럽습니다.
+      if (!story) setFocus("");
       setPanelOpen(false);
       setTab("read");
     } catch (e) {
