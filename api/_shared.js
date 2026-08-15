@@ -3,7 +3,14 @@
 
 export const ALLOW_ORIGIN = "*"; // 예: "https://<아이디>.github.io"
 
-export const ALLOWED_MODELS = new Set(["gemini-3.6-flash", "gemini-3.5-flash-lite"]);
+// 3.6 은 앱에서 더 이상 부르지 않지만 목록에 남겨 둡니다. 사용자가 열어 둔 탭이
+// 옛 빌드를 실행 중이면 여전히 3.6 을 보내는데, 여기서 빼면 그 화면이 통째로
+// 막힙니다. 새로고침이 퍼질 때까지 두었다가 나중에 지우세요.
+export const ALLOWED_MODELS = new Set([
+  "gemini-3.7-flash",
+  "gemini-3.6-flash",
+  "gemini-3.5-flash-lite",
+]);
 
 // /check 로 아무 주소나 받으면 이 함수가 남의 서버를 두드리는 도구가 됩니다.
 // 앱이 쓰는 매체만 받습니다. src/App.jsx 의 domain 값과 같게 유지하세요.

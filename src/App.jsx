@@ -193,9 +193,13 @@ const REPORT_FORM = {
 // 사용량 기록을 받을 폼. 오류 기록과 섞이면 둘 다 읽기 어려워지므로 폼을 따로
 // 씁니다. 새 구글 폼을 만들어 두 ID 를 채우면 설정에 전송 버튼이 나타납니다.
 // (폼 편집 화면에서 미리보기 → 개발자 도구로 entry.XXXX 를 확인하면 됩니다.)
+// entryId 는 폼 주소에 없습니다. 폼 편집 화면 오른쪽 위 ⋮ → "미리 채워진 링크
+// 가져오기" 로 아무 값이나 넣고 링크를 만들면, 그 주소에 entry.<숫자> 가 나옵니다.
+// 그 숫자만 아래에 넣으면 설정 탭에 "바로 전송" 버튼이 나타납니다.
+// 폼 "NewsTuner Statistics" 의 유일한 항목(Statistics, 장문 답변)입니다.
 const USAGE_FORM = {
-  formId: "",
-  entryId: "",
+  formId: "1FAIpQLSeo5oTVRiTbMq5pd9VSpQDN6bGRCrIzESIJmXisCp8IchXWEA",
+  entryId: "627572218",
 };
 
 // 최근 기록을 전송용 한 줄 요약으로 만듭니다.
@@ -1203,7 +1207,7 @@ export default function App() {
                 placeholder="찾고 싶은 내용 (선택) — 예: 반도체 수출 규제, AI 저작권 소송"
               />
               <button className="btn" onClick={() => tuneIn()} disabled={tuning || !ready}>
-                {tuning ? "수신 중…" : ready ? "주파수 맞추기" : "설정에서 키를 먼저 넣으세요"}
+                {tuning ? "수신 중…" : ready ? "기사 찾기" : "설정에서 키를 먼저 넣으세요"}
               </button>
                 </>
               )}
@@ -1226,7 +1230,7 @@ export default function App() {
               <div className="empty">
                 <p className="empty__code">NO SIGNAL</p>
                 <p className="empty__text">
-                  분야와 매체를 고르고 주파수를 맞추면
+                  분야와 매체를 고르고 기사 찾기를 누르면
                   <br />
                   오늘 기사가 도착합니다.
                 </p>
@@ -1719,7 +1723,7 @@ export default function App() {
               </small>
             </div>
 
-            {ready && <p className="ok">준비됐습니다. 읽기 탭에서 주파수를 맞추세요.</p>}
+            {ready && <p className="ok">준비됐습니다. 읽기 탭에서 기사를 찾아보세요.</p>}
           </div>
         )}
       </main>
