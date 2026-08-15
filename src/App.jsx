@@ -613,6 +613,15 @@ function markUsage(example, word) {
   return null;
 }
 
+// 홈 화면에 설치해 전체화면으로 도는 중인지. 이 상태에서는 주소창도 뒤로 가기도
+// 없어서, 링크로 다른 문서를 열면 앱으로 돌아올 방법이 사라집니다. 그래서 설치본
+// 에서는 문서를 화면에 띄우는 대신 파일로 내려받습니다. 미리보기가 뜨더라도 닫기가
+// 있어 앱으로 돌아옵니다. 브라우저 탭에서 쓰는 중이면 뒤로 가기가 있으니 그대로 엽니다.
+const isStandalone = () =>
+  typeof window !== "undefined" &&
+  (window.navigator.standalone === true ||
+    window.matchMedia?.("(display-mode: standalone)").matches === true);
+
 // 기기에 내장된 음성 합성으로 읽어줍니다. API 호출이 없어 비용이 들지 않고
 // 오프라인에서도 됩니다. 사용자 탭에서 불러야 iOS 에서 소리가 납니다.
 const canSpeak = typeof window !== "undefined" && "speechSynthesis" in window;
@@ -1685,16 +1694,13 @@ export default function App() {
                 <a
                   className="paste__btn"
                   href={`${import.meta.env.BASE_URL}NewsTuner-Guide-KR.pdf`}
-                  target="_blank"
-                  rel="noreferrer"
+                  {...(isStandalone()
+                    ? { download: "NewsTuner-Guide-KR.pdf" }
+                    : { target: "_blank", rel: "noreferrer" })}
                 >
                   설명서 열기
                 </a>
               </div>
-              <small>
-                설치·설정·사용법이 정리되어 있습니다. 처음 쓰는 사람에게 그대로 보내 주어도
-                됩니다.
-              </small>
             </div>
 
             <div className="field">
