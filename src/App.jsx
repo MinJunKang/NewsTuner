@@ -204,6 +204,11 @@ const REPORT_FORM = {
 // 가져오기" 로 아무 값이나 넣고 링크를 만들면, 그 주소에 entry.<숫자> 가 나옵니다.
 // 그 숫자만 아래에 넣으면 설정 탭에 "개발자에게 전송" 버튼이 나타납니다.
 // 폼 "NewsTuner Statistics" 의 유일한 항목(Statistics, 장문 답변)입니다.
+// 설정의 "서버 주소" 기본값입니다. 토큰을 받은 사람은 토큰만 넣으면 되도록 미리
+// 채워 둡니다. 주소만으로는 아무것도 못 합니다 — 서버가 토큰 없는 요청을 401 로
+// 막습니다(api/_shared.js 의 gate). 자기 서버를 따로 띄운 사람은 이 칸을 고치면 됩니다.
+const DEFAULT_SERVER = "https://news-tuner.vercel.app/api";
+
 const USAGE_FORM = {
   formId: "1FAIpQLSeo5oTVRiTbMq5pd9VSpQDN6bGRCrIzESIJmXisCp8IchXWEA",
   entryId: "627572218",
@@ -725,9 +730,11 @@ const renderText = (text) =>
 /* ---------------- app ---------------- */
 
 export default function App() {
+  // 저장된 값이 있으면 그것이 이깁니다. 그래서 칸을 비워 둔 사람은 계속 비어 있고,
+  // 처음 설치한 사람만 기본 서버 주소를 받습니다.
   const [keys, setKeys] = useState(() => ({
     gemini: "",
-    proxy: "",
+    proxy: DEFAULT_SERVER,
     token: "",
     ...load("nt-keys", {}),
   }));

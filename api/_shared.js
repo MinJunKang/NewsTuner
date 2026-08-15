@@ -58,8 +58,18 @@ export function gate(req, res) {
     res.status(204).end();
     return true;
   }
+  // 토큰이 없으면 통과시키던 것을 거부로 뒤집었습니다. 서버 주소는 앱에 들어 있어
+  // 공개된 값이므로, 검문이 꺼지는 순간 누구나 이 함수로 남의 Gemini 크레딧을 쓸 수
+  // 있습니다. 예전 방식은 환경변수를 지우거나 새 프로젝트에 넣는 것을 잊으면 아무
+  // 경고 없이 활짝 열렸고, 열린 줄도 몰랐습니다. 이제는 서비스가 멈춰서 바로 압니다.
   const token = process.env.SHARED_TOKEN;
-  if (token && req.headers["x-app-token"] !== token) {
+  if (!token) {
+    res.status(503).json({
+      error: { message: "서버에 SHARED_TOKEN 이 설정되지 않았습니다. 배포 환경변수를 확인하세요." },
+    });
+    return true;
+  }
+  if (req.headers["x-app-token"] !== token) {
     res.status(401).json({ error: { message: "토큰이 맞지 않습니다." } });
     return true;
   }
