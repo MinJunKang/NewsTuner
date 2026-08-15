@@ -10,6 +10,8 @@ import {
   safeUrl,
   logIssue,
 } from "./api.js";
+// 설명서 본문. 앱 화면과 PDF 가 같은 파일을 읽습니다(docs/build-guide.py 참고).
+import GUIDE from "./guide.json";
 
 /* ---------------- config ---------------- */
 
@@ -187,7 +189,7 @@ const LENGTHS = [
 // 긁으므로, 조각으로 쪼개 클릭 순간에만 조립합니다. 소스와 빌드 결과물과
 // 화면 어디에도 완성된 주소가 문자열로 존재하지 않습니다.
 // (직전 커밋 히스토리에는 평문이 남아 있어 완전한 은닉은 아닙니다.)
-// 바로 전송용 구글 폼. 만들어서 두 ID 를 채우면 "바로 전송" 버튼이 나타납니다.
+// 개발자에게 전송용 구글 폼. 만들어서 두 ID 를 채우면 "개발자에게 전송" 버튼이 나타납니다.
 // 브라우저는 메일을 직접 발송할 수 없으므로, 폼으로 무음 POST 하고
 // 폼의 "새 응답 이메일 알림"이 Gmail 로 알려주는 방식입니다. README 부록 참고.
 const REPORT_FORM = {
@@ -200,7 +202,7 @@ const REPORT_FORM = {
 // (폼 편집 화면에서 미리보기 → 개발자 도구로 entry.XXXX 를 확인하면 됩니다.)
 // entryId 는 폼 주소에 없습니다. 폼 편집 화면 오른쪽 위 ⋮ → "미리 채워진 링크
 // 가져오기" 로 아무 값이나 넣고 링크를 만들면, 그 주소에 entry.<숫자> 가 나옵니다.
-// 그 숫자만 아래에 넣으면 설정 탭에 "바로 전송" 버튼이 나타납니다.
+// 그 숫자만 아래에 넣으면 설정 탭에 "개발자에게 전송" 버튼이 나타납니다.
 // 폼 "NewsTuner Statistics" 의 유일한 항목(Statistics, 장문 답변)입니다.
 const USAGE_FORM = {
   formId: "1FAIpQLSeo5oTVRiTbMq5pd9VSpQDN6bGRCrIzESIJmXisCp8IchXWEA",
@@ -240,7 +242,7 @@ function usageEntries() {
 // 로 오르므로 그때 여기를 고쳐야 합니다. 생각 토큰은 출력 단가로 청구됩니다.
 //
 // 금액은 사용량 기록에만 씁니다. 이 요약은 화면에 그려지지 않고 "복사"와
-// "바로 전송" 으로만 나갑니다. README 와 화면에는 청구액을 적지 않습니다.
+// "개발자에게 전송" 으로만 나갑니다. README 와 화면에는 청구액을 적지 않습니다.
 const PRICE = {
   "gemini-3.7-flash": { in: 0.75, cached: 0.15, out: 3.75 },
   "gemini-3.5-flash-lite": { in: 0.3, cached: 0.06, out: 2.5 },
@@ -613,14 +615,60 @@ function markUsage(example, word) {
   return null;
 }
 
-// 홈 화면에 설치해 전체화면으로 도는 중인지. 이 상태에서는 주소창도 뒤로 가기도
-// 없어서, 링크로 다른 문서를 열면 앱으로 돌아올 방법이 사라집니다. 그래서 설치본
-// 에서는 문서를 화면에 띄우는 대신 파일로 내려받습니다. 미리보기가 뜨더라도 닫기가
-// 있어 앱으로 돌아옵니다. 브라우저 탭에서 쓰는 중이면 뒤로 가기가 있으니 그대로 엽니다.
-const isStandalone = () =>
-  typeof window !== "undefined" &&
-  (window.navigator.standalone === true ||
-    window.matchMedia?.("(display-mode: standalone)").matches === true);
+// 설명서를 앱 안에서 그립니다. PDF 로 내보내면 홈 화면에 설치한 상태에서는
+// 미리보기에 갇혀 앱으로 돌아올 방법이 없습니다(주소창도 뒤로 가기도 없습니다).
+// 본문은 src/guide.json 한 곳에만 두고 PDF 생성기도 같은 파일을 읽습니다.
+// 두 벌로 나누면 한쪽만 고쳐져 설명이 어긋납니다.
+function GuideBlock({ b }) {
+  if (b.type === "part") return <h2 className="guide__part">{b.title}</h2>;
+  if (b.type === "section")
+    return (
+      <h3 className="guide__section">
+        {b.n}. {b.title}
+      </h3>
+    );
+  if (b.type === "sub") return <h4 className="guide__sub">{b.title}</h4>;
+  if (b.type === "body") return <p className="guide__body">{b.text}</p>;
+  if (b.type === "step")
+    return (
+      <p className="guide__step">
+        <span className="guide__num">{b.n}</span>
+        {b.text}
+      </p>
+    );
+  if (b.type === "bullet")
+    return (
+      <p className="guide__bullet">
+        <b>· {b.label}</b> {b.text}
+      </p>
+    );
+  if (b.type === "box")
+    return (
+      <div className="guide__box">
+        {b.lines.map(([text, strong], i) =>
+          strong ? <b key={i}>{text}</b> : <span key={i}>{text}</span>
+        )}
+      </div>
+    );
+  return null; // pagebreak 는 PDF 에만 쓰입니다
+}
+
+function Guide({ onClose, dark }) {
+  return (
+    <section className={"guide" + (dark ? "" : " on-paper")}>
+      <div className="guide__head">
+        <p className="guide__title">{GUIDE.title}</p>
+        <button className="sheet__close" onClick={onClose}>
+          닫기 ✕
+        </button>
+      </div>
+      <p className="guide__sub-title">{GUIDE.subtitle}</p>
+      {GUIDE.blocks.map((b, i) => (
+        <GuideBlock key={i} b={b} />
+      ))}
+    </section>
+  );
+}
 
 // 기기에 내장된 음성 합성으로 읽어줍니다. API 호출이 없어 비용이 들지 않고
 // 오프라인에서도 됩니다. 사용자 탭에서 불러야 iOS 에서 소리가 납니다.
@@ -756,6 +804,7 @@ export default function App() {
   const [saveFailed, setSaveFailed] = useState(false);
   const [logMsg, setLogMsg] = useState("");
   const [usageMsg, setUsageMsg] = useState("");
+  const [guideOpen, setGuideOpen] = useState(false);
   const [ioMsg, setIoMsg] = useState("");
   const fileRef = useRef(null);
 
@@ -1691,14 +1740,17 @@ export default function App() {
             <div className="field">
               <label>사용 설명서</label>
               <div className="row__chips">
+                <button className="paste__btn" onClick={() => setGuideOpen(true)}>
+                  설명서 열기
+                </button>
+                {/* 카톡 등으로 남에게 보낼 때 쓰는 파일입니다. 앱 안에서 읽는 것은
+                    위 버튼이고, 이쪽은 내려받기 전용이라 헷갈리지 않게 이름을 나눕니다. */}
                 <a
                   className="paste__btn"
                   href={`${import.meta.env.BASE_URL}NewsTuner-Guide-KR.pdf`}
-                  {...(isStandalone()
-                    ? { download: "NewsTuner-Guide-KR.pdf" }
-                    : { target: "_blank", rel: "noreferrer" })}
+                  download="NewsTuner-Guide-KR.pdf"
                 >
-                  설명서 열기
+                  PDF 내려받기
                 </a>
               </div>
             </div>
@@ -1788,7 +1840,7 @@ export default function App() {
                       );
                     }}
                   >
-                    바로 전송
+                    개발자에게 전송
                   </button>
                 )}
                 <button
@@ -1856,7 +1908,7 @@ export default function App() {
                       );
                     }}
                   >
-                    바로 전송
+                    개발자에게 전송
                   </button>
                 )}
                 <button
@@ -1874,7 +1926,7 @@ export default function App() {
               {/* 무엇이 담기고 왜 보내는지는 설명서 9장에 있습니다. 다만 데이터를
                   내보내는 버튼 옆이라, 저절로 나가지 않는다는 사실 한 줄은 남깁니다. */}
               <small>
-                이 기기에만 남습니다. "바로 전송"을 눌러야 보내집니다.
+                이 기기에만 남습니다. "개발자에게 전송"을 눌러야 보내집니다.
               </small>
             </div>
 
@@ -1898,6 +1950,8 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {guideOpen && <Guide dark={dark} onClose={() => setGuideOpen(false)} />}
 
       {/* ---------- sheet ---------- */}
       {sheet && (
