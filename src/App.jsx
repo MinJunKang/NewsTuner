@@ -823,6 +823,8 @@ export default function App() {
   const [logMsg, setLogMsg] = useState("");
   const [usageMsg, setUsageMsg] = useState("");
   const [guideOpen, setGuideOpen] = useState(false);
+  // 진행 중인 기사 찾기를 끊는 손잡이입니다.
+  const abortRef = useRef(null);
   const [ioMsg, setIoMsg] = useState("");
   const fileRef = useRef(null);
 
@@ -860,6 +862,11 @@ export default function App() {
   // story 를 주면 새로 찾지 않고 그 기사를 다룹니다. 관련 기사 목록에서 씁니다.
   const tuneIn = useCallback(
     async (story) => {
+    // 이전 요청이 살아 있으면 끊고 시작합니다. 두 개가 겹쳐 돌면 나중에 온
+    // 응답이 먼저 온 것을 덮어써서 엉뚱한 기사가 화면에 남습니다.
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
     setTuning(true);
     holdAwake();
     setProgress("기사 찾는 중…");
@@ -879,6 +886,9 @@ export default function App() {
         story,
         exclude: seen,
         onProgress: setProgress,
+        // 키워드가 이 매체에서 빈손일 때 훑어볼 같은 분야의 다른 매체들입니다.
+        siblings: field.sources.filter((s) => s.id !== source.id),
+        signal: ctrl.signal,
       });
       setArticle(a);
       setPhrases([]);
@@ -893,12 +903,19 @@ export default function App() {
       setPanelOpen(false);
       setTab("read");
     } catch (e) {
-      setError(e.message);
-      logIssue("수신오류", `${field.id}/${source.id}`, e.message);
+      // 스스로 멈춘 것은 오류가 아닙니다. 빨간 글씨를 띄우거나 기록에 남기면
+      // 나중에 로그를 볼 때 실제 고장과 섞여 진단이 어려워집니다.
+      if (e?.name !== "AbortError") {
+        setError(e.message);
+        logIssue("수신오류", `${field.id}/${source.id}`, e.message);
+      }
     } finally {
       releaseAwake();
-      setTuning(false);
-      setProgress("");
+      // 이미 다음 요청이 시작됐다면 그쪽이 상태를 쥐고 있으므로 건드리지 않습니다.
+      if (abortRef.current === ctrl) {
+        setTuning(false);
+        setProgress("");
+      }
     }
     },
     [keys, source, field, level, length, focus, seen]
@@ -1421,8 +1438,14 @@ export default function App() {
                 }}
                 placeholder="찾고 싶은 내용 (선택) — 예: 반도체 수출 규제, AI 저작권 소송"
               />
-              <button className="btn" onClick={() => tuneIn()} disabled={tuning || !ready}>
-                {tuning ? "수신 중…" : ready ? "기사 찾기" : "설정에서 키를 먼저 넣으세요"}
+              {/* 수신 중에는 같은 자리가 중지 버튼이 됩니다. 예전에는 비활성으로
+                  막아 두어서, 1분 가까이 걸리는 동안 손쓸 방법이 없었습니다. */}
+              <button
+                className={"btn" + (tuning ? " btn--stop" : "")}
+                onClick={() => (tuning ? abortRef.current?.abort() : tuneIn())}
+                disabled={!tuning && !ready}
+              >
+                {tuning ? "중지" : ready ? "기사 찾기" : "설정에서 키를 먼저 넣으세요"}
               </button>
                 </>
               )}

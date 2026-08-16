@@ -602,6 +602,20 @@ a.paste__btn {
   color: var(--faint);
 }
 
+/* 수신 중의 중지 버튼. 주 동작이 아니므로 액센트 바탕을 걷어내고 테두리만 둡니다.
+   같은 자리에서 색이 빠지는 것으로 "지금은 다른 동작"임이 드러납니다. */
+.btn--stop {
+  background: none;
+  border: 1px solid var(--faint);
+  color: var(--dim);
+}
+
+.btn--stop:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+  filter: none;
+}
+
 /* 밝은 테마를 쓰는 영역입니다. 기사만 종이색이고 나머지는 늘 어두웠는데, 대화·
    단어장·설정까지 같이 따라가게 합니다. 안에 있는 요소를 하나하나 고치는 대신
    크롬 토큰 자체를 종이 값으로 갈아 끼웁니다. 그러면 var(--ink) 를 쓰던 것들이

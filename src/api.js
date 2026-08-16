@@ -117,13 +117,13 @@ export function looksLikeArticleUrl(u) {
 // 링크가 실제로 살아 있는지는 그 주소를 불러 봐야 압니다. 브라우저는 CORS 때문에
 // 상태 코드를 읽을 수 없으므로 서버를 거쳐야만 확인됩니다. 서버가 없으면 확인을
 // 건너뜁니다. 확인하지 못한 것을 죽었다고 볼 수는 없습니다.
-async function deadUrls(urls, proxy, proxyToken) {
+async function deadUrls(urls, proxy, proxyToken, signal) {
   if (!proxy || !urls.length) return null;
   const headers = { "Content-Type": "application/json" };
   if (proxyToken?.trim()) headers["X-App-Token"] = proxyToken.trim();
   try {
     const res = await fetch(`${proxy.replace(/\/$/, "")}/check`, {
-      method: "POST",
+      method: "POST", signal,
       headers,
       body: JSON.stringify({ urls }),
     });
@@ -156,13 +156,13 @@ const tryParse = (t) => {
 // 전문을 놓고 쓰므로 분량과 정확도가 함께 좋아지고, 출처가 하나로 고정됩니다.
 // 허브나 차단 페이지는 문단이 거의 없어 여기서 걸러지고, 그때는 검색 경로로
 // 돌아갑니다.
-async function fetchFullText(url, proxy, proxyToken) {
+async function fetchFullText(url, proxy, proxyToken, signal) {
   if (!proxy || !url) return null;
   const headers = { "Content-Type": "application/json" };
   if (proxyToken?.trim()) headers["X-App-Token"] = proxyToken.trim();
   try {
     const res = await fetch(`${proxy.replace(/\/$/, "")}/extract`, {
-      method: "POST",
+      method: "POST", signal,
       headers,
       body: JSON.stringify({ url }),
     });
@@ -198,7 +198,7 @@ const PICKS_SCHEMA = {
   required: ["picks"],
 };
 
-async function pickByMeaning({ geminiKey, proxy, proxyToken, focus, list, tally }) {
+async function pickByMeaning({ geminiKey, proxy, proxyToken, focus, list, tally, signal }) {
   const pool = list.slice(0, 30);
   const lines = pool
     .map((s, i) => `${i}. ${s.title}${s.summaryKo ? ` — ${s.summaryKo.slice(0, 120)}` : ""}`)
@@ -252,7 +252,7 @@ ${lines}`,
 // 주소는 전부 발행사가 적은 실존 주소라 모델이 목록을 지어낼 여지가 원천적으로
 // 없고, 목록 모델 호출이 통째로 빠져 더 싸고 빠릅니다. 피드가 없거나 빈손이면
 // null 을 돌려주고 기존 검색 경로가 이어받습니다.
-async function feedStories({ geminiKey, proxy, proxyToken, source, focus, exclude, tally }) {
+async function feedStories({ geminiKey, proxy, proxyToken, source, focus, exclude, tally, signal }) {
   if (!source.feed || !proxy) return null;
   const headers = { "Content-Type": "application/json" };
   if (proxyToken?.trim()) headers["X-App-Token"] = proxyToken.trim();
@@ -261,7 +261,7 @@ async function feedStories({ geminiKey, proxy, proxyToken, source, focus, exclud
   let items;
   try {
     const res = await fetch(`${proxy.replace(/\/$/, "")}/feed`, {
-      method: "POST",
+      method: "POST", signal,
       headers,
       body: JSON.stringify({ url: source.feed }),
     });
@@ -324,10 +324,13 @@ async function feedStories({ geminiKey, proxy, proxyToken, source, focus, exclud
   // 그라운딩 과금이 없고, 실패하면 예전처럼 검색 경로가 이어받습니다.
   if (wanted.length && !list.length && all.length) {
     try {
-      list = await pickByMeaning({ geminiKey, proxy, proxyToken, focus, list: all, tally });
+      list = await pickByMeaning({ geminiKey, proxy, proxyToken, focus, list: all, tally, signal });
       byMeaning = true;
       logIssue("피드의미검색", source?.id, `"${focus}" → ${list.length}건`);
     } catch (e) {
+      // 중지는 여기서 삼키면 안 됩니다. 삼키면 "빈손" 으로 보여서 다음 매체까지
+      // 훑고, 끝내는 멈춘 게 아니라 못 찾은 것처럼 오류가 뜹니다.
+      if (e?.name === "AbortError") throw e;
       logIssue("피드의미검색실패", source?.id, String(e?.message || e));
       list = [];
     }
@@ -482,7 +485,26 @@ export function logArticle(rec) {
   }
 }
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// 재시도 사이의 대기입니다. 중지를 눌렀는데 몇 초를 더 기다렸다 멈추면 버튼이
+// 안 먹은 것처럼 보이므로, 신호가 오면 기다림 자체를 깹니다.
+const aborted = () =>
+  typeof DOMException !== "undefined"
+    ? new DOMException("중지했습니다.", "AbortError")
+    : Object.assign(new Error("중지했습니다."), { name: "AbortError" });
+
+const sleep = (ms, signal) =>
+  new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(aborted());
+    const t = setTimeout(resolve, ms);
+    signal?.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(t);
+        reject(aborted());
+      },
+      { once: true }
+    );
+  });
 
 const findDetail = (details, type) =>
   (details || []).find((d) => String(d?.["@type"] || "").includes(type));
@@ -567,6 +589,7 @@ async function gemini({
   thinkingLevel,
   purpose, // 사용량 기록에만 쓰입니다. 요청에는 들어가지 않습니다.
   tally, // 주면 이 호출의 토큰을 여기에 더합니다(기사 한 편의 합계용).
+  signal, // 사용자가 중지를 누르면 진행 중인 요청까지 끊습니다.
 }) {
   const url = proxy
     ? `${proxy.replace(/\/$/, "")}/gemini/${model}`
@@ -599,8 +622,11 @@ async function gemini({
     // 벗어났다 돌아온 뒤 한참 있다 난 진짜 통신 오류까지 배경 탓으로 돌리지 않습니다.
     const sentAt = Date.now();
     try {
-      res = await fetch(url, { method: "POST", headers, body: payload });
-    } catch {
+      res = await fetch(url, { method: "POST", headers, body: payload, signal });
+    } catch (e) {
+      // 사용자가 중지를 누른 것은 오류가 아닙니다. 네트워크 오류 문구로 덮으면
+      // 스스로 멈춰 놓고 연결을 의심하게 됩니다. 그대로 올려 보냅니다.
+      if (e?.name === "AbortError") throw e;
       // Safari 는 "Load failed" 같은 영어 한 줄만 남깁니다. 연결 끊김, 프록시
       // 무응답, CORS 실패, 그리고 배경 전환에 의한 중단이 전부 이 모양으로 옵니다.
       throw new Error(
@@ -630,7 +656,7 @@ async function gemini({
     wait <= 3000;
     wait += 1500
   ) {
-    await sleep(wait);
+    await sleep(wait, signal);
     ({ res, data } = await send());
   }
 
@@ -639,7 +665,7 @@ async function gemini({
   if (res.status === 429) {
     const e = apiError(res, data);
     if (e.retryMs > 0 && e.retryMs <= 15000 && !/perday|daily/i.test(e.quotaId)) {
-      await sleep(e.retryMs + 250);
+      await sleep(e.retryMs + 250, signal);
       ({ res, data } = await send());
     }
   }
@@ -907,6 +933,8 @@ export async function fetchArticle({
   story, // 관련 기사 목록에서 고른 특정 기사. 없으면 새로 찾습니다.
   exclude, // 최근에 읽은 기사 주소. 같은 글이 다시 나오지 않게 합니다.
   onProgress, // 진행 단계를 화면에 알리는 콜백. API 호출과 무관합니다.
+  siblings, // 같은 분야의 다른 매체들. 키워드가 이 매체에서 빈손일 때 훑습니다.
+  signal, // 사용자가 중지를 누르면 진행 중인 요청까지 끊습니다.
 }) {
   const tick = (m) => {
     try {
@@ -946,18 +974,31 @@ export async function fetchArticle({
     }[length] || "about 800 words";
 
   // 주간지에 "며칠 내"를 요구하면 해당 기사가 없어 모델이 헤맵니다.
-  const recency = source.window || "the last few days";
+  // 키워드가 빈손이면 같은 분야의 다른 매체로 갈아탈 수 있습니다. 그때 매체에
+  // 딸린 값(발행 주기, 프롬프트의 매체 이름)도 함께 바뀌어야 하므로 let 으로 두고
+  // 갈아탈 때 다시 만듭니다. const 로 두면 바뀐 매체에 옛 매체 이름이 실려 나갑니다.
+  let recency = source.window || "the last few days";
 
   // 사용자가 방향을 적어 넣을 수 있습니다. 다만 요청에 맞는 기사가 없을 때
   // 억지로 지어내면 "실제 뉴스를 읽는다"는 앱의 전제가 무너집니다.
-  const focusLine = focus
-    ? `
+  const makeFocusLine = () =>
+    focus
+      ? `
 The reader is looking for this in particular: ${focus}
 The story you report must be about this, or clearly connected to it. A related angle is fine;
 something unrelated is not. If ${source.label} published nothing on it in ${recency}, set
 "error" rather than reporting an unrelated story, and never stretch or invent a story to fit.
 `
-    : "";
+      : "";
+  let focusLine = makeFocusLine();
+
+  // 매체를 갈아탑니다. 이 아래에서 만들어지는 프롬프트와 도메인 검사가 전부
+  // source 를 보므로, 여기 한 곳만 바꾸면 나머지가 따라옵니다.
+  const switchTo = (s) => {
+    source = s;
+    recency = source.window || "the last few days";
+    focusLine = makeFocusLine();
+  };
 
   // 검색과 집필을 한 번에 시키면, 모델이 무엇을 읽었는지 확인할 방법이 없고
   // 출처도 함께 사라집니다. 먼저 후보 목록을 받아 실재하는 기사를 하나 고른 뒤,
@@ -978,7 +1019,7 @@ something unrelated is not. If ${source.label} published nothing on it in ${rece
         listed = fresh;
       } else {
         tick("기사 찾는 중…");
-        listed = await findStories({ geminiKey, proxy, proxyToken, source, topic, focus, exclude, tally });
+        listed = await findStories({ geminiKey, proxy, proxyToken, source, topic, focus, exclude, tally, signal });
         listCache.set(cacheKey, { at: Date.now(), items: listed });
       }
       // 항상 1번을 쓰면 조건이 같을 때 매번 같은 기사가 나옵니다. 상위 후보
@@ -990,15 +1031,50 @@ something unrelated is not. If ${source.label} published nothing on it in ${rece
       listed = [picked, ...listed.filter((x) => x.url !== picked.url)];
       tick(`후보 ${listed.length}건 · 기사를 읽고 다시 쓰는 중…`);
     } catch (e) {
-      // 키워드를 주셨을 때 예전 경로로 넘어가면 무관한 기사를 써 오므로 그대로
-      // 알립니다. 실패 이유를 키워드 메시지로 덮지 않고 그대로 올립니다.
-      if (focus) throw e;
-      // 키워드가 없으면 옛 경로로 떨어지는데, 그러면 왜 목록이 실패했는지가
-      // 화면에서 사라집니다. 진단할 수 있게 콘솔에 남깁니다.
-      console.warn("[nt-listfail]", source?.id, e?.message || e);
-      logIssue("목록실패", source?.id, e?.message || e);
-      picked = null;
-      tick("기사를 찾아 다시 쓰는 중…");
+      if (e?.name === "AbortError") throw e;
+      // 키워드가 이 매체에서 빈손이면 같은 분야의 다른 매체를 훑습니다. 매체마다
+      // 다루는 주제가 달라서, 고른 곳에 없을 뿐 옆 매체에는 있는 일이 흔합니다
+      // (전동기·태양광을 Quanta 에 물었다가 매번 빈손이던 기록이 그 예입니다).
+      // 다만 다른 매체까지 검색 그라운딩으로 뒤지면 값이 매체 수만큼 붙으므로,
+      // 여기서는 발행사 피드만 봅니다. 피드는 모델 호출이 없거나 lite 한 번이라
+      // 거의 공짜이고, 나온 주소는 전부 실존이 보장됩니다.
+      if (focus && siblings?.length) {
+        for (const sib of siblings) {
+          if (!sib?.feed) continue;
+          tick(`${sib.label} 쪽도 찾아보는 중…`);
+          let alt = null;
+          try {
+            alt = await feedStories({
+              geminiKey, proxy, proxyToken, source: sib, focus, exclude, tally, signal,
+            });
+          } catch (err) {
+            if (err?.name === "AbortError") throw err;
+            // 한 매체가 실패해도 다음 매체는 봐야 합니다.
+            logIssue("타매체실패", sib?.id, String(err?.message || err));
+          }
+          if (alt?.length) {
+            logIssue("타매체대체", source?.id, `"${focus}" → ${sib.id} 에서 ${alt.length}건`);
+            switchTo(sib);
+            listed = alt;
+            picked = listed[Math.floor(Math.random() * Math.min(listed.length, 3))];
+            listed = [picked, ...listed.filter((x) => x.url !== picked.url)];
+            tick(`${sib.label} 에서 찾았습니다 · 기사를 읽고 다시 쓰는 중…`);
+            break;
+          }
+        }
+      }
+      // 다른 매체에서 건졌으면 여기서 할 일이 없습니다. 아무 데서도 못 찾았을
+      // 때만 아래로 내려옵니다.
+      if (!picked) {
+        // 키워드를 주셨을 때 옛 경로로 넘어가면 무관한 기사를 써 오므로 그대로
+        // 알립니다. 실패 이유를 키워드 메시지로 덮지 않고 올립니다.
+        if (focus) throw e;
+        // 키워드가 없으면 옛 경로로 떨어지는데, 그러면 왜 목록이 실패했는지가
+        // 화면에서 사라집니다. 진단할 수 있게 콘솔에 남깁니다.
+        console.warn("[nt-listfail]", source?.id, e?.message || e);
+        logIssue("목록실패", source?.id, e?.message || e);
+        tick("기사를 찾아 다시 쓰는 중…");
+      }
     }
   }
 
@@ -1108,6 +1184,7 @@ ${full.paragraphs.join("\n\n")}`
       // 매체를 붙여 둡니다. 같은 집필 호출이라도 매체마다 원문 길이와 성공률이
       // 달라서, 매체별로 갈라 봐야 어디가 비싼지 보입니다.
       purpose: `${opts.purpose || (useSearch ? "news:search" : "news:full")}·${source.id}`,
+      signal,
       tally,
       // 규칙은 매 호출 같은 글자라 시스템 지시로 보냅니다(ARTICLE_RULES 주석 참고).
       // system 에 null 을 주면 규칙 없이 부릅니다. 교정 호출이 그렇습니다.
@@ -1275,7 +1352,7 @@ ${full.paragraphs.join("\n\n")}`;
     tick("기사 전문을 가져오는 중…");
     for (const c of candidates.slice(0, 3)) {
       if (!c?.url) continue;
-      const full = await fetchFullText(c.url, proxy, proxyToken);
+      const full = await fetchFullText(c.url, proxy, proxyToken, signal);
       if (full?.dead) {
         // 주소가 죽어 있으면 이 후보는 검색 경로로도 쓰지 않습니다.
         logIssue("후보주소사망", source?.id, c.url);
@@ -1385,7 +1462,7 @@ ${full.paragraphs.join("\n\n")}`;
     article.url &&
     (article.url === aliveUrl || article.sources.some((c) => c.uri === article.url));
   if (article.url && !urlProven && proxy) {
-    const deadOne = await deadUrls([article.url], proxy, proxyToken);
+    const deadOne = await deadUrls([article.url], proxy, proxyToken, signal);
     if (deadOne?.has(article.url)) {
       logIssue("지어낸주소제거", source?.id, article.url);
       article.url = "";
@@ -1483,11 +1560,11 @@ const STORIES_SCHEMA = {
 };
 
 // 본문은 가져오지 않습니다. 무엇이 있는지 제목과 링크만 알려줍니다.
-export async function findStories({ geminiKey, proxy, proxyToken, source, topic, focus, exclude, tally }) {
+export async function findStories({ geminiKey, proxy, proxyToken, source, topic, focus, exclude, tally, signal }) {
   // 피드가 있는 매체는 발행사 목록이 곧 진실입니다. 성공하면 검색 목록을
   // 아예 부르지 않습니다. 빈손이면(키워드가 최근 목록에 없음, 피드 응답
   // 실패 등) 아래 검색 경로가 그대로 이어받습니다.
-  const fed = await feedStories({ geminiKey, proxy, proxyToken, source, focus, exclude, tally });
+  const fed = await feedStories({ geminiKey, proxy, proxyToken, source, focus, exclude, tally, signal });
   if (fed?.length) return fed;
 
   // 키워드가 있으면 최신순이 아니라 관련순으로 찾아야 합니다. 발행 기간까지
@@ -1646,7 +1723,8 @@ Reply with JSON and nothing else:
   const dead = await deadUrls(
     list.map((s) => s.url),
     proxy,
-    proxyToken
+    proxyToken,
+    signal
   );
   // 검사기가 정상 응답으로 전멸을 선고했다면 그것은 진실입니다. 모델이 목록
   // 전체를 지어냈을 때가 그렇습니다(SciNews 에서 실제 발생). 예전에는 오판으로
