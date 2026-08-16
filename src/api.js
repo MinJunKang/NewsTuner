@@ -182,11 +182,77 @@ async function fetchFullText(url, proxy, proxyToken) {
   }
 }
 
+// 피드 제목만 놓고 "이 주제와 관련 있는 것"을 고르게 합니다. 검색 그라운딩을 쓰지
+// 않으니 쿼리 과금이 없고, 작은 모델에 제목 수십 줄이라 호출 값이 거의 안 나갑니다.
+const PICKS_SCHEMA = {
+  type: "object",
+  properties: {
+    picks: {
+      type: "array",
+      items: { type: "integer" },
+      description:
+        "Index numbers of the stories that are about the reader's topic, best match first. " +
+        "Empty array if none of them are.",
+    },
+  },
+  required: ["picks"],
+};
+
+async function pickByMeaning({ geminiKey, proxy, proxyToken, focus, list, tally }) {
+  const pool = list.slice(0, 30);
+  const lines = pool
+    .map((s, i) => `${i}. ${s.title}${s.summaryKo ? ` — ${s.summaryKo.slice(0, 120)}` : ""}`)
+    .join("\n");
+
+  const { text } = await gemini({
+    geminiKey,
+    proxy,
+    proxyToken,
+    model: MODELS.list,
+    purpose: "feedpick",
+    thinkingLevel: "minimal",
+    maxOutputTokens: 300,
+    schema: PICKS_SCHEMA,
+    tally,
+    contents: [
+      {
+        role: "user",
+        parts: [
+          {
+            text: `The reader wants to read about: ${focus}
+
+That topic is often written in Korean while the headlines below are in English, so
+do not look for shared words. Judge by meaning.
+
+Pick the stories that are about that topic or about something closely connected to
+it — the same event, the same field, the same people, companies or countries. Be
+reasonably generous: if someone interested in that topic would want to read it, it
+counts. Leave out stories that only mention it in passing or have nothing to do
+with it. If none qualify, return an empty list rather than reaching.
+
+Answer with index numbers only, best match first.
+
+${lines}`,
+          },
+        ],
+      },
+    ],
+  });
+
+  const picks = extractJson(text)?.picks;
+  if (!Array.isArray(picks)) return [];
+  return picks
+    .map((i) => pool[i])
+    .filter(Boolean)
+    // 같은 번호를 두 번 적어 오는 일이 있어 걸러 냅니다.
+    .filter((s, i, a) => a.indexOf(s) === i);
+}
+
 // 언론사가 직접 발행하는 RSS/Atom 피드에서 후보 목록을 만듭니다. 여기서 나온
 // 주소는 전부 발행사가 적은 실존 주소라 모델이 목록을 지어낼 여지가 원천적으로
 // 없고, 목록 모델 호출이 통째로 빠져 더 싸고 빠릅니다. 피드가 없거나 빈손이면
 // null 을 돌려주고 기존 검색 경로가 이어받습니다.
-async function feedStories({ proxy, proxyToken, source, focus, exclude }) {
+async function feedStories({ geminiKey, proxy, proxyToken, source, focus, exclude, tally }) {
   if (!source.feed || !proxy) return null;
   const headers = { "Content-Type": "application/json" };
   if (proxyToken?.trim()) headers["X-App-Token"] = proxyToken.trim();
@@ -240,14 +306,32 @@ async function feedStories({ proxy, proxyToken, source, focus, exclude }) {
         proven: true,
       };
     })
-    .filter((s) => s.title && s.url)
-    // 키워드는 제목이나 요약에 실제로 등장해야 통과합니다. 피드는 최신 수십
-    // 건만 담으므로, 여기서 빈손이면 더 깊이 뒤질 수 있는 검색 경로로 넘깁니다.
-    .filter(
-      (s) =>
-        !wanted.length ||
-        wanted.every((w) => (s.title + " " + s.summaryKo).toLowerCase().includes(w))
+    .filter((s) => s.title && s.url);
+
+  // 1차는 글자 그대로 겹치는지 봅니다. 겹치면 모델을 부를 필요가 없어 공짜입니다.
+  const all = list;
+  let byMeaning = false;
+  if (wanted.length)
+    list = all.filter((s) =>
+      wanted.every((w) => (s.title + " " + s.summaryKo).toLowerCase().includes(w))
     );
+
+  // 글자로 못 찾았을 때 예전에는 여기서 포기하고 비싼 검색 경로로 넘어갔습니다.
+  // 그 조건이 지나치게 셌습니다. 피드 제목은 영어인데 키워드는 한국어로 적는 일이
+  // 많아(앱의 예시부터 "반도체 수출 규제"입니다) 글자 겹침이 아예 일어날 수 없고,
+  // 영어로 적어도 낱말을 전부 포함해야 해서 조금만 달리 쓰면 빠집니다.
+  // 그래서 뜻으로 골라 달라고 작은 모델에게 한 번 물어봅니다. 검색을 쓰지 않으므로
+  // 그라운딩 과금이 없고, 실패하면 예전처럼 검색 경로가 이어받습니다.
+  if (wanted.length && !list.length && all.length) {
+    try {
+      list = await pickByMeaning({ geminiKey, proxy, proxyToken, focus, list: all, tally });
+      byMeaning = true;
+      logIssue("피드의미검색", source?.id, `"${focus}" → ${list.length}건`);
+    } catch (e) {
+      logIssue("피드의미검색실패", source?.id, String(e?.message || e));
+      list = [];
+    }
+  }
 
   const fresh = list.filter((s) => !exclude?.includes(s.url));
   if (fresh.length) list = fresh;
@@ -255,9 +339,12 @@ async function feedStories({ proxy, proxyToken, source, focus, exclude }) {
     logIssue(
       "피드빈손",
       source?.id,
-      `${items.length}건 중 조건 일치 0건${focus ? ` (키워드 "${focus}")` : ""}`
+      `${items.length}건 중 조건 일치 0건${focus ? ` (키워드 "${focus}"${byMeaning ? ", 뜻으로도 없음" : ""})` : ""}`
     );
-  list.sort((a, b) => (Date.parse(b.published) || 0) - (Date.parse(a.published) || 0));
+  // 뜻으로 고른 결과는 관련도 순으로 옵니다. 그걸 날짜로 다시 세우면 가장 잘 맞는
+  // 기사가 뒤로 밀립니다. 키워드가 없을 때만 최신순이 맞습니다.
+  if (!byMeaning)
+    list.sort((a, b) => (Date.parse(b.published) || 0) - (Date.parse(a.published) || 0));
   return list.slice(0, 5);
 }
 
@@ -1400,7 +1487,7 @@ export async function findStories({ geminiKey, proxy, proxyToken, source, topic,
   // 피드가 있는 매체는 발행사 목록이 곧 진실입니다. 성공하면 검색 목록을
   // 아예 부르지 않습니다. 빈손이면(키워드가 최근 목록에 없음, 피드 응답
   // 실패 등) 아래 검색 경로가 그대로 이어받습니다.
-  const fed = await feedStories({ proxy, proxyToken, source, focus, exclude });
+  const fed = await feedStories({ geminiKey, proxy, proxyToken, source, focus, exclude, tally });
   if (fed?.length) return fed;
 
   // 키워드가 있으면 최신순이 아니라 관련순으로 찾아야 합니다. 발행 기간까지
@@ -1582,7 +1669,12 @@ Reply with JSON and nothing else:
   if (!top.length)
     throw new Error(
       focus
-        ? `"${focus}" 관련 기사를 찾지 못했습니다. 매체나 조건을 바꿔 보세요.`
+        ? // 어느 매체에서 못 찾았는지를 밝혀야 합니다. 예전 문구는 "매체나 조건을
+          // 바꿔 보라"고만 해서, 그 매체가 원래 그 주제를 다루지 않는다는 것을
+          // 모른 채 같은 조합으로 계속 다시 누르게 됩니다(기록에 그 반복이 남아
+          // 있습니다). 한 번의 실패도 검색 호출 값이 나갑니다.
+          `${source.label} 최근 기사에서 "${focus}" 관련 내용을 찾지 못했습니다. ` +
+          `이 매체가 다루지 않는 주제일 수 있으니, 다른 매체를 고르거나 키워드를 비우고 받아 보세요.`
         : "기사를 찾지 못했습니다. 조건을 바꿔 보세요."
     );
   return top;
