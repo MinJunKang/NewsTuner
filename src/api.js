@@ -199,7 +199,10 @@ const PICKS_SCHEMA = {
 };
 
 async function pickByMeaning({ geminiKey, proxy, proxyToken, focus, list, tally, signal }) {
-  const pool = list.slice(0, 30);
+  // 여러 주제 피드를 합치면 100건이 넘습니다. 30건만 보면 앞쪽 피드만 훑는 셈이라
+  // 확장한 값이 사라집니다. 제목 한 줄은 20토큰 남짓이라 60건이어도 lite 호출
+  // 하나에 다 들어갑니다.
+  const pool = list.slice(0, 60);
   const lines = pool
     .map((s, i) => `${i}. ${s.title}${s.summaryKo ? ` — ${s.summaryKo.slice(0, 120)}` : ""}`)
     .join("\n");
@@ -256,27 +259,47 @@ async function feedStories({ geminiKey, proxy, proxyToken, source, focus, exclud
   if (!source.feed || !proxy) return null;
   const headers = { "Content-Type": "application/json" };
   if (proxyToken?.trim()) headers["X-App-Token"] = proxyToken.trim();
+  // 한 매체가 여러 주제 피드를 낼 수 있습니다(IEEE Spectrum 이 그렇습니다).
+  // 그때는 전부 받아 합칩니다. 피드 받기는 서버 호출이라 과금이 없어서, 주제를
+  // 넓히는 값이 사실상 공짜입니다. 서로 겹치는 기사는 주소로 한 번만 남깁니다.
+  const feeds = (Array.isArray(source.feed) ? source.feed : [source.feed]).filter(Boolean);
+
   // 이 함수의 실패는 검색 경로가 조용히 이어받으므로 화면에는 안 보입니다.
   // 어느 지점에서 왜 넘어갔는지는 기록에 남겨야 다음 보고에서 진단이 됩니다.
-  let items;
-  try {
-    const res = await fetch(`${proxy.replace(/\/$/, "")}/feed`, {
-      method: "POST", signal,
-      headers,
-      body: JSON.stringify({ url: source.feed }),
-    });
-    if (!res.ok) {
-      logIssue("피드실패", source?.id, `서버 응답 ${res.status}`);
-      return null;
+  const one = async (url) => {
+    try {
+      const res = await fetch(`${proxy.replace(/\/$/, "")}/feed`, {
+        method: "POST", signal,
+        headers,
+        body: JSON.stringify({ url }),
+      });
+      if (!res.ok) {
+        logIssue("피드실패", source?.id, `서버 응답 ${res.status}`);
+        return [];
+      }
+      const data = await res.json();
+      if (data?.error?.message) logIssue("피드실패", source?.id, data.error.message);
+      return Array.isArray(data?.items) ? data.items : [];
+    } catch (e) {
+      if (e?.name === "AbortError") throw e;
+      logIssue("피드실패", source?.id, String(e?.message || e));
+      return [];
     }
-    const data = await res.json();
-    if (data?.error?.message) logIssue("피드실패", source?.id, data.error.message);
-    items = data?.items;
-  } catch (e) {
-    logIssue("피드실패", source?.id, String(e?.message || e));
-    return null;
-  }
-  if (!Array.isArray(items) || !items.length) {
+  };
+
+  // 순서대로 받으면 피드 수만큼 기다립니다. 동시에 받습니다.
+  const batches = await Promise.all(feeds.map(one));
+  const seenUrl = new Set();
+  const items = [];
+  for (const b of batches)
+    for (const it of b) {
+      const key = String(it?.url || "").split("?")[0];
+      if (!key || seenUrl.has(key)) continue;
+      seenUrl.add(key);
+      items.push(it);
+    }
+
+  if (!items.length) {
     logIssue("피드실패", source?.id, "항목 0건");
     return null;
   }
@@ -311,6 +334,11 @@ async function feedStories({ geminiKey, proxy, proxyToken, source, focus, exclud
       };
     })
     .filter((s) => s.title && s.url);
+
+  // 피드를 여러 개 합쳤으면 순서가 "피드1 전부 → 피드2 전부" 입니다. 그대로 두면
+  // 아래에서 앞쪽만 잘라 보게 되어 뒤 주제가 통째로 빠집니다. 먼저 최신순으로
+  // 섞어, 어느 주제든 최근 것부터 검토되게 합니다.
+  list.sort((a, b) => (Date.parse(b.published) || 0) - (Date.parse(a.published) || 0));
 
   // 1차는 글자 그대로 겹치는지 봅니다. 겹치면 모델을 부를 필요가 없어 공짜입니다.
   const all = list;

@@ -82,10 +82,21 @@ const FIELDS = [
       // 기사가 없어 매번 빈손이었습니다. 메인 피드에는 IEEE 회원용 경력 조언이
       // 섞여 있어, 실제 공학 보도만 담기는 에너지 토픽 피드를 씁니다.
       // 발행이 잦지 않아 창을 2주로 잡습니다.
+      // 주제 피드를 여러 개 겁니다. 하나만 걸었더니 그 주제 밖(전동기, 로봇, 자율
+      // 주행)은 매번 빈손이었습니다. 피드 받기는 서버 호출이라 과금이 없어서
+      // 넓히는 값이 사실상 공짜이고, 겹치는 기사는 주소로 한 번만 남습니다.
+      // ai · computer-vision · natural-language-processing 은 토픽이 없어(404)
+      // artificial-intelligence 하나가 그 셋을 함께 덮습니다.
       { id: "ieee", length: "mid", label: "IEEE Spectrum", short: "IEEE", freq: "96.1",
         domain: "spectrum.ieee.org",
-        feed: "https://spectrum.ieee.org/feeds/topic/energy.rss",
-        window: "the last two weeks", note: "전력·에너지 공학, 현장 기술 용어가 살아 있음" },
+        feed: [
+          "https://spectrum.ieee.org/feeds/topic/artificial-intelligence.rss",
+          "https://spectrum.ieee.org/feeds/topic/robotics.rss",
+          "https://spectrum.ieee.org/feeds/topic/transportation.rss",
+          "https://spectrum.ieee.org/feeds/topic/energy.rss",
+          "https://spectrum.ieee.org/feeds/topic/semiconductors.rss",
+        ],
+        window: "the last two weeks", note: "AI·로봇·모빌리티·전력·반도체 공학" },
     ],
   },
   {
