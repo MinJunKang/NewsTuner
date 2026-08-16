@@ -748,24 +748,28 @@ async function gemini({
   // 그만큼 다시 과금될 수 있어 한 번만 더 시도합니다.
   const busy = (s) => s === 503 || s === 529 || s === 500;
   const timedOut = (s) => s === 502 || s === 504;
+  // 붐빌 때는 기다렸다 같은 모델을 또 부르는 것보다 모델을 갈아타는 쪽이
+  // 빠릅니다. 실측에서 실패한 시도 하나가 수십 초를 먹었습니다 — 상류가 한참
+  // 붙들고 있다가 5xx 를 돌려줍니다. 예전처럼 같은 모델로 사다리를 다 오르고
+  // 나서야 갈아타면 느린 실패가 서너 번 쌓여 한 단계에 108~159초가 걸렸습니다
+  // (실측). 그래서 첫 실패 직후 바로 갈아타고, 그다음부터는 둘을 번갈아 부릅니다.
+  // 갈아탈 모델이 없으면(lite 등) 예전처럼 같은 모델로 사다리를 오릅니다.
+  // 503 은 토큰이 청구되지 않으므로 이 모든 재시도의 값은 시간뿐입니다.
+  // 어느 모델이 실제로 응답했는지는 사용량 기록에 남습니다.
+  const alt = FALLBACK_MODEL[model];
   const waits = [2000, 5000, 10000];
   for (let i = 0; i < waits.length; i++) {
     if (!busy(res.status) && !timedOut(res.status)) break;
+    // 시간 초과(502/504)는 상류에서 처리가 끝났는데 응답만 놓쳤을 수 있어
+    // 재과금 위험이 있습니다. 모델을 바꿔도 마찬가지라 한 번만 더 시도합니다.
     if (timedOut(res.status) && i >= 1) break;
+    if (busy(res.status) && alt) {
+      const next = active === model ? alt : model;
+      logIssue("모델우회", purpose || "", `${active} → ${next} (${res.status})`);
+      active = next;
+    }
     // 같은 순간에 몰려 다시 부르지 않게 조금 흔들어 줍니다.
     await sleep(waits[i] + Math.floor(Math.random() * 500), signal);
-    ({ res, data } = await send());
-  }
-
-  // 그래도 붐비면 모델을 갈아타고 한 번 더 갑니다. 새 모델은 나온 지 얼마 안 돼
-  // 몰리는 시간대가 있는데, 한 세대 앞 모델은 같은 단가에 같은 일을 하던 것이라
-  // 품질을 크게 잃지 않고 우회할 수 있습니다. 503 은 토큰이 청구되지 않으므로
-  // 갈아타 보는 값도 시간뿐입니다. 어느 모델이 실제로 응답했는지는 사용량 기록에
-  // 그대로 남으므로, 이 우회가 얼마나 자주 쓰이는지 나중에 셀 수 있습니다.
-  const alt = FALLBACK_MODEL[active];
-  if (busy(res.status) && alt) {
-    logIssue("모델우회", purpose || "", `${active} → ${alt} (${res.status})`);
-    active = alt;
     ({ res, data } = await send());
   }
 
