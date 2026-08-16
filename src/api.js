@@ -89,6 +89,48 @@ const stripMarkers = (t) =>
 const HARD_HUB =
   /^(tag|tags|topic|topics|hub|hubs|live|series|collection|collections|index|category|categories|search|author|authors|people|video|videos|watch|listen|podcast|podcasts|gallery|galleries|photos|photo|newsletter|newsletters|about|subscribe|donate)$/i;
 
+// 모델이 검색 결과의 주소를 JSON 으로 옮겨 적다가 슬러그 한 구간을 두 번 적는
+// 일이 있습니다(실제 사례: ...falling-to-erdos-problems-are-falling-to-ai...).
+// 이런 주소는 404 인데, 매체의 CDN 이 서버 IP 를 봇으로 보고 403 을 주는 시간대
+// 에는 생존 검사가 죽음을 증명하지 못해 화면까지 갑니다. 검사에 기대는 대신
+// 여기서 반복 구간을 접어 고칩니다. 진짜 제목에 세 단어 이상이 연이어 두 번
+// 나오는 일은 사실상 없으므로, 긴 반복만 접으면 오탐 없이 원래 주소가 나옵니다.
+// 고친 주소가 틀렸더라도 잃는 것은 없습니다. 어차피 원래 주소는 404 이고,
+// 고친 주소는 이후의 전문 추출·생존 검사를 그대로 다시 통과해야 합니다.
+export function collapseRepeatedSlug(u) {
+  const safe = safeUrl(u);
+  if (!safe) return u;
+  try {
+    const url = new URL(safe);
+    const segs = url.pathname.split("/");
+    let changed = false;
+    const fixed = segs.map((seg) => {
+      const tokens = seg.split("-");
+      if (tokens.length < 6) return seg;
+      // 긴 반복부터 접어야 부분 반복을 잘못 접지 않습니다.
+      for (let len = Math.floor(tokens.length / 2); len >= 3; len--) {
+        for (let i = 0; i + 2 * len <= tokens.length; i++) {
+          const a = tokens.slice(i, i + len).join("-");
+          const b = tokens.slice(i + len, i + 2 * len).join("-");
+          if (a === b && a.length >= 12) {
+            tokens.splice(i + len, len);
+            changed = true;
+            len = Math.floor(tokens.length / 2) + 1; // 다시 처음부터
+            break;
+          }
+        }
+      }
+      return tokens.join("-");
+    });
+    if (!changed) return safe;
+    url.pathname = fixed.join("/");
+    logIssue("주소중복교정", "", `${safe} → ${url.href}`);
+    return url.href;
+  } catch {
+    return u;
+  }
+}
+
 export function looksLikeArticleUrl(u) {
   const safe = safeUrl(u);
   if (!safe) return false;
@@ -1486,11 +1528,13 @@ ${full.paragraphs.join("\n\n")}`;
   // 목록 단계에서 고른 기사의 주소가 1순위입니다. 검색 결과에서 나온 실제
   // 주소이고 발행사 도메인 검사까지 통과한 것입니다. 그다음이 그라운딩 주소,
   // 마지막이 모델이 이번 응답에 적어 낸 주소입니다.
+  // picked.url 은 목록 단계에서 이미 교정을 거쳤고, 모델이 이번 응답에 적어 낸
+  // 주소는 여기서 교정합니다. 옮겨 적다 뭉갠 슬러그는 어느 응답에서든 나옵니다.
   article.url =
     aliveUrl ||
     article.sources[0]?.uri ||
     picked?.url ||
-    onDomain(article.url, source.domain) ||
+    collapseRepeatedSlug(onDomain(article.url, source.domain) || "") ||
     "";
 
   // 발행일도 목록 단계 값이 더 믿을 만합니다. 검색 결과에 붙어 오는 값입니다.
@@ -1529,7 +1573,8 @@ ${full.paragraphs.join("\n\n")}`;
         .map((r) => ({
           title: stripMarkers(r?.title),
           titleKo: stripMarkers(r?.titleKo),
-          url: onDomain(r?.url, source.domain) || "",
+          // 관련 기사 주소도 모델이 적어 낸 것이라 같은 교정을 거칩니다.
+          url: collapseRepeatedSlug(onDomain(r?.url, source.domain) || "") || "",
           srcId: source.id,
         }))
         .filter((r) => r.title && r.url && r.url !== article.url && looksLikeArticleUrl(r.url))
@@ -1740,6 +1785,9 @@ Reply with JSON and nothing else:
       relevance: Number.isFinite(s?.relevance) ? s.relevance : 0,
       srcId: source.id,
     }))
+    // 검색 목록의 주소는 모델이 옮겨 적은 것이라 슬러그가 뭉개질 수 있습니다.
+    // 피드 주소는 발행사가 적은 것이라 손대지 않습니다.
+    .map((s) => ({ ...s, url: s.url ? collapseRepeatedSlug(s.url) : s.url }))
     .filter((s) => s.title && s.url)
     // 주소 모양으로 기사가 아닌 페이지를 거릅니다. 모델에게 "허브를 쓰지 마라" 고
     // 부탁하는 것과 달리 이쪽은 무시될 수 없습니다.
