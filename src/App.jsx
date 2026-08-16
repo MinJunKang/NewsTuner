@@ -2057,7 +2057,20 @@ export default function App() {
 
           {sheet.kind === "sentence" && sheet.data && (
             <>
-              <p className="k-ex k-en">{sheet.term}</p>
+              {/* 단어·관용구 시트에는 발음 듣기가 있는데 문장에만 없었습니다.
+                  문장은 오히려 끊어 읽기와 억양을 들어봐야 하는 자리입니다. */}
+              <p className="k-ex k-en">
+                {sheet.term}
+                {canSpeak && (
+                  <button
+                    className="speak speak--sm"
+                    onClick={() => speak(sheet.term)}
+                    aria-label="문장 듣기"
+                  >
+                    🔊
+                  </button>
+                )}
+              </p>
               <p className="k-ko">{sheet.data.translation}</p>
               <p className="k-en">{sheet.data.literal}</p>
               <p className="k-mono">{sheet.data.structure}</p>
