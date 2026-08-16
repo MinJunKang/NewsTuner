@@ -592,7 +592,10 @@ function apiError(res, body) {
   } else if (res.status === 503 || res.status === 529 || res.status === 500) {
     // 모델 쪽 혼잡·일시 장애입니다. 요청 자체가 처리되지 않은 것이라 기다렸다
     // 다시 부르면 대개 풀립니다. 영어 원문을 그대로 보여줄 이유가 없습니다.
-    message = "모델이 혼잡합니다. 잠시 후 자동으로 다시 시도했지만 실패했습니다. 조금 뒤에 다시 눌러 주세요.";
+    // 내 앱이나 설정 문제가 아니라는 점을 밝혀야 엉뚱한 곳을 고치지 않습니다.
+    message =
+      "구글 모델 쪽이 붐빕니다. 세 번까지 자동으로 다시 시도했지만 안 됐습니다. " +
+      "설정 문제가 아니니 1~2분 뒤에 다시 눌러 주세요.";
   } else {
     message = `요청 실패 (${res.status}) ${detail}`.trim();
   }
@@ -678,17 +681,20 @@ async function gemini({
 
   let { res, data } = await send();
 
-  // 503/529 는 혼잡, 502/504 는 시간 초과입니다. 어느 쪽이든 잠깐 기다렸다
-  // 다시 부르면 풀리는 일이 많습니다. 두 번까지, 간격을 늘려 가며.
-  // (504 는 상류에서 처리가 끝났는데 응답만 놓쳤을 수 있어 재과금 위험이
-  //  있지만, 결과 없이 끝나는 것보다 낫습니다.)
-  for (
-    let wait = 1500;
-    (res.status === 503 || res.status === 529 || res.status === 502 || res.status === 504) &&
-    wait <= 3000;
-    wait += 1500
-  ) {
-    await sleep(wait, signal);
+  // 503/529/500 은 상류가 요청을 아예 처리하지 못한 것이라 토큰이 청구되지
+  // 않습니다. 다시 부르는 값이 시간뿐이므로 넉넉히 기다렸다 세 번까지 갑니다.
+  // 예전에는 1.5초·3초로 끝나서, 조금만 붐벼도 사용자에게 실패로 떨어졌습니다
+  // (기록에 "모델이 혼잡합니다" 가 반복해서 남았습니다).
+  // 502/504 는 상류에서 처리가 끝났는데 응답만 놓쳤을 수 있습니다. 다시 부르면
+  // 그만큼 다시 과금될 수 있어 한 번만 더 시도합니다.
+  const busy = (s) => s === 503 || s === 529 || s === 500;
+  const timedOut = (s) => s === 502 || s === 504;
+  const waits = [2000, 5000, 10000];
+  for (let i = 0; i < waits.length; i++) {
+    if (!busy(res.status) && !timedOut(res.status)) break;
+    if (timedOut(res.status) && i >= 1) break;
+    // 같은 순간에 몰려 다시 부르지 않게 조금 흔들어 줍니다.
+    await sleep(waits[i] + Math.floor(Math.random() * 500), signal);
     ({ res, data } = await send());
   }
 
