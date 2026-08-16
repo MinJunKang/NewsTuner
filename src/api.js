@@ -1773,11 +1773,17 @@ Reply with JSON and nothing else:
   }
   if (!searched(cand)) {
     try {
-      // 재시도는 조건을 전부 올립니다. 스키마 제거, 생각 상향, 그리고 모델도
-      // 큰 쪽으로. 같은 조건으로 다시 부르면 같은 결과가 나오기 쉽습니다.
+      // 재시도는 조건을 바꿉니다. 스키마 제거, 모델을 큰 쪽으로, 그리고 검색을
+      // 강제하는 머리말. 같은 조건으로 다시 부르면 같은 결과가 나오기 쉽습니다.
+      // 생각은 medium 으로 올리지 않습니다. 실측에서 이 재시도가 회당 생각
+      // 4,200토큰·31초·$0.02 로 목록 단계 비용과 시간의 최대 항목이었는데,
+      // 하는 일은 제목 여덟 줄을 적는 것입니다. 검색 도구를 집게 만드는 것은
+      // 생각 수준이 아니라 모델 교체와 머리말이고, 큰 모델 + low 는 heavyList
+      // 매체(SciNews)가 늘 쓰는 검증된 조합입니다. minimal 만 피하면 됩니다
+      // (minimal 은 검색 도구 자체를 안 집던 이력이 있습니다).
       const plain = await listCall(
         undefined,
-        "medium",
+        "low",
         "Your previous attempt answered from memory without running Google Search. That is " +
           "not acceptable: every story must come from an actual search you run now.\n\n",
         MODELS.news
