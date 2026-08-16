@@ -1025,7 +1025,7 @@ something unrelated is not. If ${source.label} published nothing on it in ${rece
         tick("기사 찾는 중…");
         listed = await findStories({
           geminiKey, proxy, proxyToken, source, topic, focus, exclude, tally, signal,
-          siblings, onStep: tick,
+          siblings, onStep: tick, fieldLabel,
         });
         // 다른 매체에서 건져 왔을 수 있습니다. 그러면 이후의 도메인 검사와
         // 프롬프트가 전부 그 매체를 기준으로 돌아야 합니다.
@@ -1550,6 +1550,7 @@ export async function findStories({
   geminiKey, proxy, proxyToken, source, topic, focus, exclude, tally, signal,
   siblings, // 같은 분야의 다른 매체들. 키워드가 빈손일 때 이쪽 피드를 훑습니다.
   onStep, // 진행 표시 콜백(선택).
+  fieldLabel, // 실패 문구에 어느 분야를 뒤졌는지 밝히는 데 씁니다.
 }) {
   // 피드가 있는 매체는 발행사 목록이 곧 진실입니다. 성공하면 검색 목록을
   // 아예 부르지 않습니다. 빈손이면(키워드가 최근 목록에 없음, 피드 응답
@@ -1769,8 +1770,11 @@ Reply with JSON and nothing else:
         // 바꿔 보라"고만 해서, 그 매체가 원래 그 주제를 다루지 않는다는 것을 모른 채
         // 같은 조합으로 계속 다시 누르게 됩니다. 다른 매체까지 훑었다면 그 사실도
         // 밝혀야 합니다. 안 그러면 훑고도 안 훑은 것처럼 보입니다.
+        // 어느 분야를 뒤졌는지도 밝힙니다. 분야가 내가 고른 것과 다르면 그 자리에서
+        // 드러나야 합니다(새로고침으로 선택이 되돌아간 적이 있었습니다).
         (swept.length
-          ? `${source.label}와 ${swept.join(", ")} 최근 기사에서 "${focus}" 관련 내용을 찾지 못했습니다. ` +
+          ? `${fieldLabel ? `${fieldLabel} 분야의 ` : ""}${source.label}와 ${swept.join(", ")} ` +
+            `최근 기사에서 "${focus}" 관련 내용을 찾지 못했습니다. ` +
             `이 분야가 다루지 않는 주제일 수 있으니, 다른 분야를 고르거나 키워드를 비우고 받아 보세요.`
           : `${source.label} 최근 기사에서 "${focus}" 관련 내용을 찾지 못했습니다. ` +
             `이 매체가 다루지 않는 주제일 수 있으니, 다른 매체를 고르거나 키워드를 비우고 받아 보세요.`)

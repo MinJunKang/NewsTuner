@@ -748,8 +748,16 @@ export default function App() {
   }));
   const [vocab, setVocab] = useState(() => load("nt-vocab", []));
 
-  const [field, setField] = useState(FIELDS[0]);
-  const [source, setSource] = useState(FIELDS[0].sources[0]);
+  // 고른 분야·매체를 기억합니다. 예전에는 매번 News/NPR 로 되돌아갔는데, 기사와
+  // 단어장은 남아 있어서 되돌아간 것을 눈치채기 어려웠습니다. 새로고침 뒤 기술
+  // 분야인 줄 알고 키워드를 넣으면 엉뚱하게 News 를 뒤지게 됩니다.
+  const [field, setField] = useState(
+    () => FIELDS.find((f) => f.id === load("nt-field", "")) || FIELDS[0]
+  );
+  const [source, setSource] = useState(() => {
+    const f = FIELDS.find((x) => x.id === load("nt-field", "")) || FIELDS[0];
+    return f.sources.find((s) => s.id === load("nt-source", "")) || f.sources[0];
+  });
   const [level, setLevel] = useState(LEVELS[1]);
   const [length, setLength] = useState(LENGTHS[1]);
 
@@ -847,6 +855,12 @@ export default function App() {
   useEffect(() => {
     save("nt-seen", seen);
   }, [seen]);
+  useEffect(() => {
+    save("nt-field", field.id);
+  }, [field]);
+  useEffect(() => {
+    save("nt-source", source.id);
+  }, [source]);
   // 붙여넣은 글은 기기에 남기지 않습니다. 앱을 닫으면 사라집니다.
   useEffect(() => {
     if (article && !article.pasted) save("nt-article", article);
@@ -891,6 +905,7 @@ export default function App() {
         onProgress: setProgress,
         // 키워드가 이 매체에서 빈손일 때 훑어볼 같은 분야의 다른 매체들입니다.
         siblings: field.sources.filter((s) => s.id !== source.id),
+        fieldLabel: field.label,
         signal: ctrl.signal,
       });
       setArticle(a);
@@ -1082,6 +1097,7 @@ export default function App() {
           // 이 목록도 기사 찾기와 같게 동작해야 합니다. 한쪽만 다른 매체를 훑으면
           // 같은 키워드인데 버튼에 따라 결과가 달라집니다.
           siblings: field.sources.filter((s) => s.id !== source.id),
+          fieldLabel: field.label,
         })
       );
     } catch (e) {
