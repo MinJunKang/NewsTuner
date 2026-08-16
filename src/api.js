@@ -966,6 +966,7 @@ export async function fetchArticle({
   exclude, // 최근에 읽은 기사 주소. 같은 글이 다시 나오지 않게 합니다.
   onProgress, // 진행 단계를 화면에 알리는 콜백. API 호출과 무관합니다.
   siblings, // 같은 분야의 다른 매체들. 키워드가 이 매체에서 빈손일 때 훑습니다.
+  fieldLabel, // 실패 문구에 어느 분야를 뒤졌는지 밝히는 데 씁니다.
   signal, // 사용자가 중지를 누르면 진행 중인 요청까지 끊습니다.
 }) {
   const tick = (m) => {
