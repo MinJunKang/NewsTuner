@@ -14,6 +14,13 @@ export const MODELS = {
   list: "gemini-3.5-flash-lite",
 };
 
+// 붐빌 때 갈아탈 모델입니다. 3.7 은 나온 지 얼마 안 돼 몰리는 시간대가 있는데,
+// 3.6 은 이 앱이 얼마 전까지 쓰던 모델이라 품질이 검증돼 있고 단가도 같습니다.
+// 서버의 허용 목록(api/_shared.js)에 3.6 이 남아 있어야 이 우회가 동작합니다.
+const FALLBACK_MODEL = {
+  "gemini-3.7-flash": "gemini-3.6-flash",
+};
+
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
 /* ------------------------------------------------------------------ *
@@ -626,9 +633,12 @@ async function gemini({
   tally, // 주면 이 호출의 토큰을 여기에 더합니다(기사 한 편의 합계용).
   signal, // 사용자가 중지를 누르면 진행 중인 요청까지 끊습니다.
 }) {
-  const url = proxy
-    ? `${proxy.replace(/\/$/, "")}/gemini/${model}`
-    : `${GEMINI_BASE}/${model}:generateContent?key=${encodeURIComponent(geminiKey)}`;
+  // 붐빌 때 갈아탈 수 있으므로 모델을 고정해 두지 않습니다.
+  let active = model;
+  const urlFor = (m) =>
+    proxy
+      ? `${proxy.replace(/\/$/, "")}/gemini/${m}`
+      : `${GEMINI_BASE}/${m}:generateContent?key=${encodeURIComponent(geminiKey)}`;
 
   const headers = { "Content-Type": "application/json" };
   // 서버를 쓸 때는 서버의 SHARED_TOKEN 과 맞춰 보냅니다.
@@ -657,7 +667,7 @@ async function gemini({
     // 벗어났다 돌아온 뒤 한참 있다 난 진짜 통신 오류까지 배경 탓으로 돌리지 않습니다.
     const sentAt = Date.now();
     try {
-      res = await fetch(url, { method: "POST", headers, body: payload, signal });
+      res = await fetch(urlFor(active), { method: "POST", headers, body: payload, signal });
     } catch (e) {
       // 사용자가 중지를 누른 것은 오류가 아닙니다. 네트워크 오류 문구로 덮으면
       // 스스로 멈춰 놓고 연결을 의심하게 됩니다. 그대로 올려 보냅니다.
@@ -698,6 +708,18 @@ async function gemini({
     ({ res, data } = await send());
   }
 
+  // 그래도 붐비면 모델을 갈아타고 한 번 더 갑니다. 새 모델은 나온 지 얼마 안 돼
+  // 몰리는 시간대가 있는데, 한 세대 앞 모델은 같은 단가에 같은 일을 하던 것이라
+  // 품질을 크게 잃지 않고 우회할 수 있습니다. 503 은 토큰이 청구되지 않으므로
+  // 갈아타 보는 값도 시간뿐입니다. 어느 모델이 실제로 응답했는지는 사용량 기록에
+  // 그대로 남으므로, 이 우회가 얼마나 자주 쓰이는지 나중에 셀 수 있습니다.
+  const alt = FALLBACK_MODEL[active];
+  if (busy(res.status) && alt) {
+    logIssue("모델우회", purpose || "", `${active} → ${alt} (${res.status})`);
+    active = alt;
+    ({ res, data } = await send());
+  }
+
   // 분당 한도는 몇 초만 기다리면 풀립니다. 하루 한도는 기다려도 소용없으니
   // 그대로 알립니다. 사용자가 버튼을 다시 누르게 하면 한도만 더 깎입니다.
   if (res.status === 429) {
@@ -714,8 +736,10 @@ async function gemini({
   // 실제 토큰 사용량입니다. 비용 추정이 아니라 실측을 보려면 브라우저 콘솔에서
   // [nt-usage] 를 찾으면 됩니다. 화면이나 요청에는 아무 영향이 없습니다.
   if (data.usageMetadata) {
-    console.debug("[nt-usage]", model, purpose, data.usageMetadata);
-    logUsage(model, purpose, data.usageMetadata);
+    // 갈아탔으면 실제로 응답한 모델로 남깁니다. 요청한 모델로 남기면 단가 계산이
+    // 어긋나고, 우회가 얼마나 쓰였는지도 알 수 없습니다.
+    console.debug("[nt-usage]", active, purpose, data.usageMetadata);
+    logUsage(active, purpose, data.usageMetadata);
     addTally(tally, data.usageMetadata);
   }
 
