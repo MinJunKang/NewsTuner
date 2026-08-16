@@ -78,6 +78,14 @@ const FIELDS = [
         domain: "arstechnica.com",
         feed: "https://feeds.arstechnica.com/arstechnica/index",
         window: "the last few days", note: "IT·과학 실무 보도, 뉴스는 짧고 특집은 김" },
+      // 전동기·태양광 같은 공학 주제를 물어도 기존 세 매체(수학·이론물리·IT)에는
+      // 기사가 없어 매번 빈손이었습니다. 메인 피드에는 IEEE 회원용 경력 조언이
+      // 섞여 있어, 실제 공학 보도만 담기는 에너지 토픽 피드를 씁니다.
+      // 발행이 잦지 않아 창을 2주로 잡습니다.
+      { id: "ieee", length: "mid", label: "IEEE Spectrum", short: "IEEE", freq: "96.1",
+        domain: "spectrum.ieee.org",
+        feed: "https://spectrum.ieee.org/feeds/topic/energy.rss",
+        window: "the last two weeks", note: "전력·에너지 공학, 현장 기술 용어가 살아 있음" },
     ],
   },
   {
