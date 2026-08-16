@@ -296,9 +296,9 @@ function summarizeUsageLog(maxChars) {
   const groups = new Map();
   for (const e of calls) {
     const key = `${e?.p || "?"} · ${e?.m || "?"}`;
-    const g = groups.get(key) || { n: 0, in: 0, cache: 0, tool: 0, think: 0, out: 0, total: 0, usd: 0 };
+    const g = groups.get(key) || { n: 0, in: 0, cache: 0, tool: 0, think: 0, out: 0, total: 0, ms: 0, usd: 0 };
     g.n += 1;
-    for (const f of ["in", "cache", "tool", "think", "out", "total"]) g[f] += e?.[f] || 0;
+    for (const f of ["in", "cache", "tool", "think", "out", "total", "ms"]) g[f] += e?.[f] || 0;
     g.usd += callCost(e);
     groups.set(key, g);
   }
@@ -343,20 +343,23 @@ function summarizeUsageLog(maxChars) {
       `${name} | ${b.arts} | ${b.chars.toLocaleString()} | ${b.tok.toLocaleString()} | $${b.usd.toFixed(4)} | ${per} | ${per100} | ${cpa} | ${b.full}/${b.arts}\n`;
   }
 
-  body += `\n[기사별] 매체 | 난이도·분량 | 글자 | 단어 | 호출 | 경로\n`;
+  // 전체 시간과 모델 시간을 나란히 둡니다. 둘의 차이가 곧 피드·전문 추출·링크
+  // 검사에 쓴 시간이라, "왜 오래 걸리나"를 이 표만으로 가를 수 있습니다.
+  body += `\n[기사별] 매체 | 난이도·분량 | 글자 | 단어 | 호출 | 경로 | 전체초(모델초)\n`;
   for (const a of articles.slice(0, 20)) {
-    const line = `${a?.src || "?"} | ${a?.level || "?"}·${a?.len || "?"} | ${(a?.chars || 0).toLocaleString()} | ${(a?.words || 0).toLocaleString()} | ${a?.calls ?? "?"} | ${a?.path || "?"}\n`;
+    const secs = a?.ms ? `${Math.round(a.ms / 1000)}(${Math.round((a.modelMs || 0) / 1000)})` : "—";
+    const line = `${a?.src || "?"} | ${a?.level || "?"}·${a?.len || "?"} | ${(a?.chars || 0).toLocaleString()} | ${(a?.words || 0).toLocaleString()} | ${a?.calls ?? "?"} | ${a?.path || "?"} | ${secs}\n`;
     if ((body + line).length > maxChars) break;
     body += line;
   }
 
-  body += `\n[단계별] 단계·모델 | 호출 | 입력(캐시/검색주입) | 생각 | 출력 | 회당합계 | 비용\n`;
+  body += `\n[단계별] 단계·모델 | 호출 | 입력(캐시/검색주입) | 생각 | 출력 | 회당합계 | 비용 | 회당초\n`;
   const rows = [...groups.entries()].sort((a, b) => b[1].usd - a[1].usd);
   for (const [key, g] of rows) {
     const line =
       `${key} | ${g.n} | ${g.in.toLocaleString()}(${g.cache.toLocaleString()}/${g.tool.toLocaleString()})` +
       ` | ${g.think.toLocaleString()} | ${g.out.toLocaleString()} | ${Math.round(g.total / g.n).toLocaleString()}` +
-      ` | $${g.usd.toFixed(4)}\n`;
+      ` | $${g.usd.toFixed(4)} | ${(g.ms / g.n / 1000).toFixed(1)}\n`;
     if ((body + line).length > maxChars) break;
     body += line;
   }

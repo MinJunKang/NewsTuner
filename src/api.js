@@ -266,6 +266,7 @@ async function pickByMeaning({ geminiKey, proxy, proxyToken, focus, list, tally,
     maxOutputTokens: 300,
     schema: PICKS_SCHEMA,
     tally,
+    signal,
     contents: [
       {
         role: "user",
@@ -500,7 +501,7 @@ export function logIssue(kind, where, message) {
 // 비용을 먹는지는 추정으로는 알 수 없고, 특히 생각 토큰(thoughts)과 검색 주입
 // 입력(toolUse)은 화면 어디에도 드러나지 않습니다. 기사 본문이나 검색어 같은
 // 내용은 단 한 글자도 담지 않습니다. 숫자와 모델 이름뿐입니다. 400건 상한.
-export function logUsage(model, purpose, u) {
+export function logUsage(model, purpose, u, ms) {
   if (!u) return;
   try {
     const key = "nt-usagelog";
@@ -509,6 +510,8 @@ export function logUsage(model, purpose, u) {
       t: new Date().toISOString(),
       m: model, // 모델 이름
       p: purpose || "", // 어느 단계에서 부른 호출인지
+      ms: ms || 0, // 재시도·우회 대기까지 포함한 호출 소요 시간
+
       in: u.promptTokenCount || 0, // 입력
       cache: u.cachedContentTokenCount || 0, // 그중 캐시로 할인된 몫
       tool: u.toolUsePromptTokenCount || 0, // 검색 결과가 입력으로 주입된 몫
@@ -542,10 +545,11 @@ const wentAway = (since) =>
 // 기사 한 편을 만드는 데 든 토큰을 한곳에 모읍니다. 호출 단위 기록만으로는
 // "이 매체의 이 분량이 얼마짜리인가"를 알 수 없습니다. 목록·집필·교정이 각각
 // 몇 번 나갔는지는 기사마다 다르기 때문입니다.
-const newTally = () => ({ calls: 0, in: 0, cache: 0, think: 0, out: 0, total: 0 });
-function addTally(tally, u) {
+const newTally = () => ({ calls: 0, in: 0, cache: 0, think: 0, out: 0, total: 0, ms: 0 });
+function addTally(tally, u, ms) {
   if (!tally || !u) return;
   tally.calls += 1;
+  tally.ms += ms || 0;
   tally.in += u.promptTokenCount || 0;
   tally.cache += u.cachedContentTokenCount || 0;
   tally.think += u.thoughtsTokenCount || 0;
@@ -731,6 +735,9 @@ async function gemini({
     return { res, data };
   };
 
+  // 첫 시도부터 재시도·우회까지 포함한 실제 소요 시간입니다. "왜 오래 걸리나"는
+  // 토큰 수로는 답할 수 없어서, 단계별 시간을 함께 남깁니다.
+  const t0 = Date.now();
   let { res, data } = await send();
 
   // 503/529/500 은 상류가 요청을 아예 처리하지 못한 것이라 토큰이 청구되지
@@ -780,9 +787,10 @@ async function gemini({
   if (data.usageMetadata) {
     // 갈아탔으면 실제로 응답한 모델로 남깁니다. 요청한 모델로 남기면 단가 계산이
     // 어긋나고, 우회가 얼마나 쓰였는지도 알 수 없습니다.
-    console.debug("[nt-usage]", active, purpose, data.usageMetadata);
-    logUsage(active, purpose, data.usageMetadata);
-    addTally(tally, data.usageMetadata);
+    const ms = Date.now() - t0;
+    console.debug("[nt-usage]", active, purpose, ms + "ms", data.usageMetadata);
+    logUsage(active, purpose, data.usageMetadata, ms);
+    addTally(tally, data.usageMetadata, ms);
   }
 
   const cand = data.candidates?.[0];
@@ -1050,6 +1058,9 @@ export async function fetchArticle({
   };
   // 이 기사 한 편에 든 토큰을 전부 여기에 모읍니다(목록·집필·교정).
   const tally = newTally();
+  // 기사 한 편의 전체 소요 시간입니다. 모델 호출 합계(tally.ms)와의 차이가 곧
+  // 피드·전문 추출·링크 검사에 쓴 시간이라, 어디가 느린지 가를 수 있습니다.
+  const startedAt = Date.now();
   const levelSpec = {
     easy: "CEFR B2. Natural news register, moderate sentence length.",
     // 이 단계는 학습자용으로 눅여 쓰지 말라고 구체적으로 지시해야 실제 기사 문체가 나옵니다.
@@ -1434,19 +1445,24 @@ ${full.paragraphs.join("\n\n")}`;
   let opened = null; // { chosen, full }
   if (proxy && candidates.length) {
     tick("기사 전문을 가져오는 중…");
-    for (const c of candidates.slice(0, 3)) {
-      if (!c?.url) continue;
-      const full = await fetchFullText(c.url, proxy, proxyToken, signal);
+    // 세 후보를 동시에 가져옵니다. 순차로 돌리면 매체 CDN 이 서버를 막는 시간대에
+    // 후보마다 타임아웃(10초)을 다 기다려 최대 30초가 모델 호출 전에 사라집니다.
+    // "키워드 없이도 오래 걸린다"는 보고의 유력한 원인이었습니다. 추출은 서버
+    // 호출이라 과금이 없으므로 세 개를 한꺼번에 던져도 잃는 것이 없고, 결과는
+    // 후보 순서대로 골라 기존 우선순위를 그대로 지킵니다.
+    const trio = candidates.slice(0, 3).filter((c) => c?.url);
+    const fulls = await Promise.all(
+      trio.map((c) => fetchFullText(c.url, proxy, proxyToken, signal))
+    );
+    for (let i = 0; i < trio.length; i++) {
+      const full = fulls[i];
       if (full?.dead) {
         // 주소가 죽어 있으면 이 후보는 검색 경로로도 쓰지 않습니다.
-        logIssue("후보주소사망", source?.id, c.url);
-        deadUrl.add(c.url);
+        logIssue("후보주소사망", source?.id, trio[i].url);
+        deadUrl.add(trio[i].url);
         continue;
       }
-      if (full) {
-        opened = { chosen: c, full };
-        break;
-      }
+      if (full && !opened) opened = { chosen: trio[i], full };
     }
     if (!opened && candidates.length)
       logIssue("전문실패", source?.id, `후보 ${Math.min(candidates.length, 3)}건 모두 추출 실패`);
@@ -1593,6 +1609,8 @@ ${full.paragraphs.join("\n\n")}`;
     words: bodyText.split(/\s+/).filter(Boolean).length,
     calls: tally.calls,
     path: usedFull ? "full" : "search",
+    ms: Date.now() - startedAt, // 전체 소요
+    modelMs: tally.ms, // 그중 모델 호출이 차지한 몫
   });
 
   return article;
