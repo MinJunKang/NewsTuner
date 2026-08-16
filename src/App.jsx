@@ -878,7 +878,10 @@ export default function App() {
         geminiKey: keys.gemini,
         proxy: keys.proxy,
         proxyToken: keys.token,
-        source,
+        // 목록에서 고른 기사가 다른 매체 것일 수 있습니다(키워드가 빈손이면 같은
+        // 분야를 훑으므로). 그 기사를 원래 고른 매체 기준으로 다루면 도메인 검사와
+        // 프롬프트의 매체 이름이 어긋나므로, 기사에 붙은 매체를 따라갑니다.
+        source: (story?.srcId && field.sources.find((s) => s.id === story.srcId)) || source,
         topic: field.topic,
         focus: focus.trim(),
         level: level.id,
@@ -1076,6 +1079,9 @@ export default function App() {
           source,
           topic: field.topic,
           focus: focus.trim(),
+          // 이 목록도 기사 찾기와 같게 동작해야 합니다. 한쪽만 다른 매체를 훑으면
+          // 같은 키워드인데 버튼에 따라 결과가 달라집니다.
+          siblings: field.sources.filter((s) => s.id !== source.id),
         })
       );
     } catch (e) {
@@ -1445,7 +1451,7 @@ export default function App() {
                 onClick={() => (tuning ? abortRef.current?.abort() : tuneIn())}
                 disabled={!tuning && !ready}
               >
-                {tuning ? "중지" : ready ? "기사 찾기" : "설정에서 키를 먼저 넣으세요"}
+                {tuning ? "검색 중지" : ready ? "기사 찾기" : "설정에서 키를 먼저 넣으세요"}
               </button>
                 </>
               )}

@@ -94,12 +94,17 @@
       "type": "box",
       "lines": [
         ["Leave the screen on while you wait", true],
-        ["Switching to another app or letting the screen lock cuts the request off. If that happens, just tap the button again.", false]
+        ["Switching to another app or letting the screen lock cuts the request off. If that happens, just tap the button again.", false],
+        ["To give up while waiting, tap '검색 중지' (stop searching) — the same button changes to it.", false]
       ]
     },
     {
       "type": "body",
       "text": "To steer the choice, type into '찾고 싶은 내용' (what you are looking for) — something like 'semiconductor export controls'. Leave it empty and you get whatever is newest."
+    },
+    {
+      "type": "body",
+      "text": "If the outlet you chose has nothing on that topic, the app looks through the other outlets in the same field, so the article may come from a different publication than the one you picked. The outlet name is shown at the top of every article."
     },
 
     { "type": "section", "n": 5, "title": "Looking things up as you read" },

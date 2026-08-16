@@ -301,6 +301,10 @@ async function feedStories({ geminiKey, proxy, proxyToken, source, focus, exclud
         url: onDomain(raw, source.domain) || "",
         matchesRequest: true,
         relevance: 0,
+        // 어느 매체에서 온 후보인지 붙여 둡니다. 키워드가 빈손일 때 같은 분야의
+        // 다른 매체를 훑는데, 그때 고른 기사를 원래 매체 기준으로 다루면 도메인
+        // 검사와 프롬프트의 매체 이름이 전부 어긋납니다.
+        srcId: source.id,
         // 발행사 피드에서 온 주소는 실존이 증명된 것입니다. 표시 단계가 생존
         // 확인 없이 원문 링크로 믿고 쓸 수 있습니다.
         proven: true,
@@ -1019,7 +1023,17 @@ something unrelated is not. If ${source.label} published nothing on it in ${rece
         listed = fresh;
       } else {
         tick("기사 찾는 중…");
-        listed = await findStories({ geminiKey, proxy, proxyToken, source, topic, focus, exclude, tally, signal });
+        listed = await findStories({
+          geminiKey, proxy, proxyToken, source, topic, focus, exclude, tally, signal,
+          siblings, onStep: tick,
+        });
+        // 다른 매체에서 건져 왔을 수 있습니다. 그러면 이후의 도메인 검사와
+        // 프롬프트가 전부 그 매체를 기준으로 돌아야 합니다.
+        const from = listed[0]?.srcId;
+        if (from && from !== source.id) {
+          const sib = siblings?.find((s) => s.id === from);
+          if (sib) switchTo(sib);
+        }
         listCache.set(cacheKey, { at: Date.now(), items: listed });
       }
       // 항상 1번을 쓰면 조건이 같을 때 매번 같은 기사가 나옵니다. 상위 후보
@@ -1032,40 +1046,9 @@ something unrelated is not. If ${source.label} published nothing on it in ${rece
       tick(`후보 ${listed.length}건 · 기사를 읽고 다시 쓰는 중…`);
     } catch (e) {
       if (e?.name === "AbortError") throw e;
-      // 키워드가 이 매체에서 빈손이면 같은 분야의 다른 매체를 훑습니다. 매체마다
-      // 다루는 주제가 달라서, 고른 곳에 없을 뿐 옆 매체에는 있는 일이 흔합니다
-      // (전동기·태양광을 Quanta 에 물었다가 매번 빈손이던 기록이 그 예입니다).
-      // 다만 다른 매체까지 검색 그라운딩으로 뒤지면 값이 매체 수만큼 붙으므로,
-      // 여기서는 발행사 피드만 봅니다. 피드는 모델 호출이 없거나 lite 한 번이라
-      // 거의 공짜이고, 나온 주소는 전부 실존이 보장됩니다.
-      if (focus && siblings?.length) {
-        for (const sib of siblings) {
-          if (!sib?.feed) continue;
-          tick(`${sib.label} 쪽도 찾아보는 중…`);
-          let alt = null;
-          try {
-            alt = await feedStories({
-              geminiKey, proxy, proxyToken, source: sib, focus, exclude, tally, signal,
-            });
-          } catch (err) {
-            if (err?.name === "AbortError") throw err;
-            // 한 매체가 실패해도 다음 매체는 봐야 합니다.
-            logIssue("타매체실패", sib?.id, String(err?.message || err));
-          }
-          if (alt?.length) {
-            logIssue("타매체대체", source?.id, `"${focus}" → ${sib.id} 에서 ${alt.length}건`);
-            switchTo(sib);
-            listed = alt;
-            picked = listed[Math.floor(Math.random() * Math.min(listed.length, 3))];
-            listed = [picked, ...listed.filter((x) => x.url !== picked.url)];
-            tick(`${sib.label} 에서 찾았습니다 · 기사를 읽고 다시 쓰는 중…`);
-            break;
-          }
-        }
-      }
-      // 다른 매체에서 건졌으면 여기서 할 일이 없습니다. 아무 데서도 못 찾았을
-      // 때만 아래로 내려옵니다.
-      if (!picked) {
+      // 다른 매체 훑기는 findStories 안에서 끝났습니다. 여기까지 왔다는 것은
+      // 그 분야 어디에서도 못 찾았다는 뜻입니다.
+      {
         // 키워드를 주셨을 때 옛 경로로 넘어가면 무관한 기사를 써 오므로 그대로
         // 알립니다. 실패 이유를 키워드 메시지로 덮지 않고 올립니다.
         if (focus) throw e;
@@ -1474,9 +1457,11 @@ ${full.paragraphs.join("\n\n")}`;
 
   // 목록을 받아 왔다면 나머지 후보가 곧 관련 기사입니다. 검색에서 나온 주소라
   // 모델이 이번 응답에 적어 낸 것보다 믿을 만합니다.
+  // srcId 를 함께 넘깁니다. 다른 매체로 갈아탄 뒤 관련 기사를 누르면, 그 기사를
+  // 어느 매체 기준으로 다뤄야 하는지 화면 쪽이 알아야 합니다.
   const leftovers = listed
     .slice(1)
-    .map((r) => ({ title: r.title, titleKo: "", url: r.url }))
+    .map((r) => ({ title: r.title, titleKo: "", url: r.url, srcId: r.srcId || source.id }))
     .filter((r) => r.url && r.url !== article.url);
 
   article.related = leftovers.length
@@ -1486,6 +1471,7 @@ ${full.paragraphs.join("\n\n")}`;
           title: stripMarkers(r?.title),
           titleKo: stripMarkers(r?.titleKo),
           url: onDomain(r?.url, source.domain) || "",
+          srcId: source.id,
         }))
         .filter((r) => r.title && r.url && r.url !== article.url && looksLikeArticleUrl(r.url))
         .slice(0, 5);
@@ -1560,7 +1546,11 @@ const STORIES_SCHEMA = {
 };
 
 // 본문은 가져오지 않습니다. 무엇이 있는지 제목과 링크만 알려줍니다.
-export async function findStories({ geminiKey, proxy, proxyToken, source, topic, focus, exclude, tally, signal }) {
+export async function findStories({
+  geminiKey, proxy, proxyToken, source, topic, focus, exclude, tally, signal,
+  siblings, // 같은 분야의 다른 매체들. 키워드가 빈손일 때 이쪽 피드를 훑습니다.
+  onStep, // 진행 표시 콜백(선택).
+}) {
   // 피드가 있는 매체는 발행사 목록이 곧 진실입니다. 성공하면 검색 목록을
   // 아예 부르지 않습니다. 빈손이면(키워드가 최근 목록에 없음, 피드 응답
   // 실패 등) 아래 검색 경로가 그대로 이어받습니다.
@@ -1688,6 +1678,7 @@ Reply with JSON and nothing else:
       url: onDomain(s?.url, source.domain) || "",
       matchesRequest: s?.matchesRequest !== false,
       relevance: Number.isFinite(s?.relevance) ? s.relevance : 0,
+      srcId: source.id,
     }))
     .filter((s) => s.title && s.url)
     // 주소 모양으로 기사가 아닌 페이지를 거릅니다. 모델에게 "허브를 쓰지 마라" 고
@@ -1744,18 +1735,47 @@ Reply with JSON and nothing else:
       `모델 ${raw}건 → 필터 후 ${list.length}건, 검색증거 ${searched(cand) ? "있음" : "없음"}`
     );
   }
-  if (!top.length)
-    throw new Error(
-      focus
-        ? // 어느 매체에서 못 찾았는지를 밝혀야 합니다. 예전 문구는 "매체나 조건을
-          // 바꿔 보라"고만 해서, 그 매체가 원래 그 주제를 다루지 않는다는 것을
-          // 모른 채 같은 조합으로 계속 다시 누르게 됩니다(기록에 그 반복이 남아
-          // 있습니다). 한 번의 실패도 검색 호출 값이 나갑니다.
-          `${source.label} 최근 기사에서 "${focus}" 관련 내용을 찾지 못했습니다. ` +
-          `이 매체가 다루지 않는 주제일 수 있으니, 다른 매체를 고르거나 키워드를 비우고 받아 보세요.`
-        : "기사를 찾지 못했습니다. 조건을 바꿔 보세요."
-    );
-  return top;
+  if (top.length) return top;
+
+  // 이 매체에서 빈손입니다. 키워드가 있으면 같은 분야의 다른 매체 피드를 훑습니다.
+  // 매체마다 다루는 주제가 달라서, 고른 곳에 없을 뿐 옆 매체에는 있는 일이 흔합니다.
+  // 검색 그라운딩까지 매체 수만큼 돌리면 값이 그만큼 붙으므로 피드만 봅니다.
+  const swept = [];
+  if (focus && siblings?.length) {
+    for (const sib of siblings) {
+      if (!sib?.feed) continue;
+      swept.push(sib.label);
+      onStep?.(`${sib.label} 쪽도 찾아보는 중…`);
+      let alt = null;
+      try {
+        alt = await feedStories({
+          geminiKey, proxy, proxyToken, source: sib, focus, exclude, tally, signal,
+        });
+      } catch (err) {
+        if (err?.name === "AbortError") throw err;
+        logIssue("타매체실패", sib?.id, String(err?.message || err));
+      }
+      if (alt?.length) {
+        logIssue("타매체대체", source?.id, `"${focus}" → ${sib.id} 에서 ${alt.length}건`);
+        return alt;
+      }
+    }
+    logIssue("타매체빈손", source?.id, `"${focus}" · 훑은 매체: ${swept.join(", ") || "없음"}`);
+  }
+
+  throw new Error(
+    focus
+      ? // 어느 매체에서 못 찾았는지를 밝혀야 합니다. 예전 문구는 "매체나 조건을
+        // 바꿔 보라"고만 해서, 그 매체가 원래 그 주제를 다루지 않는다는 것을 모른 채
+        // 같은 조합으로 계속 다시 누르게 됩니다. 다른 매체까지 훑었다면 그 사실도
+        // 밝혀야 합니다. 안 그러면 훑고도 안 훑은 것처럼 보입니다.
+        (swept.length
+          ? `${source.label}와 ${swept.join(", ")} 최근 기사에서 "${focus}" 관련 내용을 찾지 못했습니다. ` +
+            `이 분야가 다루지 않는 주제일 수 있으니, 다른 분야를 고르거나 키워드를 비우고 받아 보세요.`
+          : `${source.label} 최근 기사에서 "${focus}" 관련 내용을 찾지 못했습니다. ` +
+            `이 매체가 다루지 않는 주제일 수 있으니, 다른 매체를 고르거나 키워드를 비우고 받아 보세요.`)
+      : "기사를 찾지 못했습니다. 조건을 바꿔 보세요."
+  );
 }
 
 /* ------------------------------------------------------------------ *
